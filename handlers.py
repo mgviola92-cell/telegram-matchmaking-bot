@@ -9,6 +9,7 @@ import repository as db
 from responses import say
 
 CONFIRM_AGE, NAME, AGE, MEDIA, BIO = range(5)
+EDIT_TEXT, EDIT_MEDIA = range(5, 7)
 drafts = {}
 
 def caption(p):
@@ -519,7 +520,12 @@ async def profile_view(update, context):
     public = bool(p["is_public"])
     toggle = B("🌷 Public ပိတ်မယ်" if public else "🌍 Public ဖွင့်မယ်",
                callback_data=f"profile_public:{group_id}:{0 if public else 1}")
-    await show_profile(context.bot, q.from_user.id, p, K([[toggle]]))
+    actions = K([[toggle],
+                 [B("✏️ နာမည်ပြင်မယ်", callback_data=f"profile_edit:{group_id}:display_name"),
+                  B("💬 Bio ပြင်မယ်", callback_data=f"profile_edit:{group_id}:bio")],
+                 [B("📸 ပုံ/Video ပြင်မယ်", callback_data=f"profile_edit:{group_id}:media")],
+                 [B("🗑 Profile ဖျက်မယ်", callback_data=f"profile_delete_ask:{group_id}")]])
+    await show_profile(context.bot, q.from_user.id, p, actions)
 
 async def profile_public(update, context):
     q = update.callback_query
@@ -552,6 +558,117 @@ async def profile_public(update, context):
           callback_data=f"profile_public:{gid}:{0 if state else 1}")
     ]]))
 
+
+
+async def profile_edit_begin(update, context):
+    q = update.callback_query
+    if q.message.chat.type != "private":
+        await q.answer("Private Chat မှာပဲ ပြင်ကြမယ်နော်။",show_alert=True)
+        return ConversationHandler.END
+    try:
+        _, gid_str, field = q.data.split(":")
+        gid = int(gid_str)
+    except (ValueError, AttributeError):
+        await q.answer("ခလုတ်လေး အဆင်မပြေတော့ဘူး။",show_alert=True)
+        return ConversationHandler.END
+    if field not in ("display_name","bio","media") or not await db.get_profile(q.from_user.id,gid):
+        await q.answer("Profile လေး မရှိတော့ဘူးနော်။",show_alert=True)
+        return ConversationHandler.END
+    context.user_data["profile_edit"] = {"group_id":gid,"field":field}
+    await q.answer()
+    if field == "media":
+        await q.message.reply_text("📸 ပုံအသစ် ဒါမှမဟုတ် စက္ကန့် ၃၀ အောက် Video လေး ပို့ပေးနော်။ /cancel နဲ့ ရပ်နိုင်တယ်။")
+        return EDIT_MEDIA
+    await q.message.reply_text(
+        "💗 နာမည်အသစ်လေး ရေးပေးနော်။" if field == "display_name"
+        else "💬 Bio အသစ်လေး ရေးပေးနော်။ မထည့်ချင်ရင် /skip လို့ပို့ပါ။")
+    return EDIT_TEXT
+
+async def profile_edit_text(update, context):
+    edit = context.user_data.get("profile_edit")
+    if not edit or edit["field"] not in ("display_name","bio"):
+        return ConversationHandler.END
+    value = update.message.text.strip()
+    field = edit["field"]
+    if field == "display_name" and not (1 <= len(value) <= 60):
+        await update.message.reply_text("နာမည်လေးကို စာလုံး ၁ လုံးကနေ ၆၀ လုံးအထိ ရေးပေးနော်။")
+        return EDIT_TEXT
+    if field == "bio":
+        value = "" if value == "/skip" else value
+        if len(value) > 300:
+            await update.message.reply_text("Bio လေးကို စာလုံး ၃၀၀ အောက်ပဲ ရေးပေးနော်။")
+            return EDIT_TEXT
+    result = await db.update_profile_text(update.effective_user.id, edit["group_id"],field,value)
+    context.user_data.pop("profile_edit",None)
+    await update.message.reply_text("💗 Profile လေး ပြင်ပြီးပြီနော်။" if result else "🌷 Profile လေး မရှိတော့ဘူးနော်။")
+    return ConversationHandler.END
+
+async def profile_edit_media(update, context):
+    edit = context.user_data.get("profile_edit")
+    if not edit or edit["field"] != "media":
+        return ConversationHandler.END
+    message = update.message
+    if message.photo:
+        kind, fid = "photo", message.photo[-1].file_id
+    elif message.video and message.video.duration is not None and message.video.duration <= 30:
+        kind, fid = "video", message.video.file_id
+    else:
+        await message.reply_text("🌷 ဓာတ်ပုံ ဒါမှမဟုတ် စက္ကန့် ၃၀ အောက် Video လေးပဲ ပို့ပေးနော်။")
+        return EDIT_MEDIA
+    result = await db.update_profile_media(update.effective_user.id,edit["group_id"],kind,fid)
+    context.user_data.pop("profile_edit",None)
+    await message.reply_text("💗 မိတ်ဆက်ပုံလေး အသစ်ပြောင်းပြီးပြီ။" if result else "🌷 Profile လေး မရှိတော့ဘူးနော်။")
+    return ConversationHandler.END
+
+async def profile_edit_cancel(update, context):
+    context.user_data.pop("profile_edit",None)
+    await update.message.reply_text("🌷 မပြင်တော့ဘူးဆိုလည်း ရပါတယ်နော်။")
+    return ConversationHandler.END
+
+async def profile_delete_ask(update, context):
+    q = update.callback_query
+    if q.message.chat.type != "private":
+        await q.answer("Private Chat မှာပဲ လုပ်ပေးနော်။",show_alert=True)
+        return
+    try:
+        gid = int(q.data.split(":",1)[1])
+    except (AttributeError,ValueError):
+        await q.answer("ခလုတ်လေး အဆင်မပြေတော့ဘူးနော်။",show_alert=True)
+        return
+    if not await db.get_profile(q.from_user.id,gid):
+        await q.answer("Profile လေး မရှိတော့ဘူးနော်။",show_alert=True)
+        return
+    await q.answer()
+    await q.message.reply_text("🗑 ဒီ Group အတွက် Profile လေးကို တကယ်ဖျက်မလား? ဖျက်ပြီးရင် ပြန်ယူလို့မရဘူးနော်။",
+        reply_markup=K([[B("🗑 သေချာဖျက်မယ်",callback_data=f"profile_delete_do:{gid}")],
+                        [B("🌷 မဖျက်တော့ဘူး",callback_data="profile_delete_cancel")]]))
+
+async def profile_delete_do(update, context):
+    q = update.callback_query
+    if q.message.chat.type != "private":
+        await q.answer("Private Chat မှာပဲ လုပ်ပေးနော်။",show_alert=True)
+        return
+    if q.data == "profile_delete_cancel":
+        await q.answer()
+        await q.edit_message_text("💗 Profile လေးကို ဆက်သိမ်းထားမယ်နော်။")
+        return
+    try:
+        gid = int(q.data.split(":",1)[1])
+    except (AttributeError,ValueError):
+        await q.answer("ခလုတ်လေး အဆင်မပြေတော့ဘူးနော်။",show_alert=True)
+        return
+    result = await db.delete_profile(q.from_user.id,gid)
+    if result is None:
+        await q.answer("Profile လေး မရှိတော့ဘူးနော်။",show_alert=True)
+        return
+    await q.answer("Profile ဖျက်ပြီးပြီ")
+    await q.edit_message_text("🌷 ဒီ Group အတွက် Profile ကို ဖျက်ပြီးပါပြီ။")
+    affected = {r["sender_id"] for r in result["affected"] if r["sender_id"] != q.from_user.id}
+    for uid in affected:
+        try:
+            await context.bot.send_message(uid,"💌 ပို့ထားတဲ့ မိတ်ဆက်ဖိတ်ခေါ်ချက်တစ်ခုဟာ Profile ဖျက်လိုက်လို့ မရနိုင်တော့ဘူးနော်။")
+        except TelegramError:
+            logging.info("Unable to notify affected requester")
 
 SETTING_LABELS = {
     "matchmaking": "💗 Matchmaking", "registration": "📝 Registration",
@@ -616,7 +733,15 @@ def handlers():
         fallbacks=[CommandHandler("cancel", cancel)],
         allow_reentry=True,
     )
-    return [registration, CommandHandler("register", register), CommandHandler("match", match),
+    profile_editor = ConversationHandler(
+        entry_points=[CallbackQueryHandler(profile_edit_begin,pattern=r"^profile_edit:")],
+        states={EDIT_TEXT:[CommandHandler("skip",profile_edit_text),
+                           MessageHandler(filters.TEXT & ~filters.COMMAND,profile_edit_text)],
+                EDIT_MEDIA:[MessageHandler(filters.PHOTO | filters.VIDEO,profile_edit_media)]},
+        fallbacks=[CommandHandler("cancel",profile_edit_cancel)],
+        allow_reentry=True,
+    )
+    return [registration, profile_editor, CommandHandler("register", register), CommandHandler("match", match),
             CallbackQueryHandler(browse_callback, pattern=r"^browse:"),
             CallbackQueryHandler(browse_mode_callback, pattern=r"^browse_mode:"),
             CallbackQueryHandler(ask_callback, pattern=r"^ask:"), CallbackQueryHandler(reply_callback, pattern=r"^reply:"),
@@ -626,6 +751,8 @@ def handlers():
             CallbackQueryHandler(setting_callback, pattern=r"^setting:"),
             CallbackQueryHandler(profile_view, pattern=r"^profile_view:"),
             CallbackQueryHandler(profile_public, pattern=r"^profile_public:"),
+            CallbackQueryHandler(profile_delete_ask,pattern=r"^profile_delete_ask:"),
+            CallbackQueryHandler(profile_delete_do,pattern=r"^profile_delete_(do:|cancel$)"),
             CallbackQueryHandler(inbox_open, pattern=r"^inbox_open:"),
             CallbackQueryHandler(withdraw_ask, pattern=r"^withdraw_ask:"),
             CallbackQueryHandler(withdraw_do, pattern=r"^withdraw_(do:|cancel$)")]
