@@ -74,3 +74,8 @@ ALTER TABLE requests ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 -- Self-declared adult eligibility replaces asking for exact age.
 ALTER TABLE profiles ALTER COLUMN age DROP NOT NULL;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS adult_self_confirmed BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Telegram group messages belonging to a request, for cleanup on private handoff.
+-- IDs are message references only; no profile media is stored.
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS group_card_message_id BIGINT;
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS group_prompt_message_id BIGINT;
