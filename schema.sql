@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS profiles (
  user_id BIGINT NOT NULL,
  group_id BIGINT NOT NULL,
  display_name TEXT NOT NULL CHECK(length(display_name) BETWEEN 1 AND 60),
- age SMALLINT NOT NULL CHECK(age BETWEEN 13 AND 17),
+ age SMALLINT NOT NULL CHECK(age BETWEEN 18 AND 120),
  bio TEXT CHECK(length(bio)<=300),
  media_type TEXT NOT NULL CHECK(media_type IN ('photo','video')),
  media_file_id TEXT NOT NULL,
@@ -24,3 +24,7 @@ CREATE TABLE IF NOT EXISTS requests (
 );
 CREATE INDEX IF NOT EXISTS pending_requests_recipient ON requests(recipient_id,created_at DESC) WHERE status='pending';
 CREATE INDEX IF NOT EXISTS request_sender_target ON requests(sender_id,recipient_id,created_at DESC);
+
+-- Upgrade earlier development databases that used the 13–17 check.
+ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_age_check;
+ALTER TABLE profiles ADD CONSTRAINT profiles_age_check CHECK (age BETWEEN 18 AND 120) NOT VALID;
