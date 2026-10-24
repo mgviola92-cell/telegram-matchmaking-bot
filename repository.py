@@ -20,6 +20,10 @@ async def set_public_profile(user_id, group_id):
     p = await pool()
     async with p.acquire() as c:
         async with c.transaction():
+            await c.execute("SELECT pg_advisory_xact_lock($1)",user_id)
+            exists = await c.fetchval("SELECT 1 FROM profiles WHERE user_id=$1 AND group_id=$2 AND NOT archived",user_id,group_id)
+            if not exists:
+                return None
             await c.execute("UPDATE profiles SET is_public=false WHERE user_id=$1",user_id)
             return await c.execute("UPDATE profiles SET is_public=true WHERE user_id=$1 AND group_id=$2 AND NOT archived",user_id,group_id)
 
@@ -91,3 +95,20 @@ async def user_profiles(user_id):
     async with p.acquire() as c:
         return await c.fetch("""SELECT * FROM profiles WHERE user_id=$1
             AND NOT archived ORDER BY created_at DESC LIMIT 100""", user_id)
+
+async def set_private_profile(user_id, group_id):
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.execute("""UPDATE profiles SET is_public=false
+            WHERE user_id=$1 AND group_id=$2 AND NOT archived""", user_id, group_id)
+
+async def update_profile_text(user_id, group_id, field, value):
+    """Only allowlisted text fields, never user-supplied SQL identifiers."""
+    columns = {"display_name": "display_name", "bio": "bio"}
+    if field not in columns:
+        raise ValueError("Unsupported profile field")
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetchrow(
+            f"UPDATE profiles SET {columns[field]}=$3 WHERE user_id=$1 AND group_id=$2 AND NOT archived RETURNING *",
+            user_id, group_id, value)
