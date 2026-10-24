@@ -1,5 +1,6 @@
 """Group-specific registration and browsing handlers. No background database polling."""
 import html
+import json
 import logging
 from telegram import InlineKeyboardButton as B, InlineKeyboardMarkup as K, InputMediaPhoto, InputMediaVideo
 from telegram.error import TelegramError
@@ -222,6 +223,8 @@ async def browse_callback(update, context):
             pass
         return
     keys = session["profile_keys"]
+    if isinstance(keys, str):
+        keys = json.loads(keys)
     if not keys:
         await q.answer("လှည့်ကြည့်ဖို့ Profile မရှိတော့ဘူးနော်။", show_alert=True)
         return
@@ -283,6 +286,16 @@ async def ask_callback(update, context):
         return
     if q.from_user.id != invoker or q.message.chat.id != source_group:
         await q.answer("ဒီခလုတ်လေးက Profile ကြည့်နေသူအတွက်ပဲနော် 💗", show_alert=True)
+        return
+    session = await db.active_browse_session(invoker,source_group)
+    if not session or session["message_id"] != q.message.message_id:
+        await q.answer("🌷 ဒီမိတ်ဆက်ကတ်လေး သက်တမ်းကုန်ပြီ။ /match နဲ့ ပြန်စကြမယ်နော်။", show_alert=True)
+        return
+    keys = session["profile_keys"]
+    if isinstance(keys, str):
+        keys = json.loads(keys)
+    if (not keys or [target_user,target_group] != keys[session["position"]]):
+        await q.answer("🌷 အခုကြည့်နေတဲ့ Profile ကတ်လေးမှာပဲ တောင်းပေးနော်။", show_alert=True)
         return
     if not await member(context.bot, source_group, invoker) or not await member(context.bot, target_group, target_user):
         await q.answer("Group အဖွဲ့ဝင်အခြေအနေ ပြောင်းသွားပြီနော်။", show_alert=True)
