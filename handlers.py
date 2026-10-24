@@ -563,6 +563,15 @@ async def reply_callback(update, context):
     if q.from_user.id != target:
         await q.answer("ဒီအချစ်စာလေးက ပိုင်ရှင်အတွက်ပဲနော် 💗", show_alert=True)
         return
+    req = await db.pending_request_for_recipient(request_id,target)
+    if not req:
+        await q.answer("ဒီဖိတ်ခေါ်စာလေး အဖြေပေးပြီးသား ဒါမှမဟုတ် သက်တမ်းကုန်သွားပြီနော်။",show_alert=True)
+        await cleanup_request_group_messages(context.bot,request_id,target)
+        return
+    refs = await db.get_request_group_messages(request_id,target)
+    if refs and refs["group_prompt_message_id"]:
+        await q.answer("Private ကိုသွားဖို့ ခလုတ်လေး ပေးပြီးသားနော်။",show_alert=True)
+        return
     me = await context.bot.get_me()
     await q.answer()
     prompt = await q.message.reply_text("💌 ဒီ Request ကို Private Chat မှာ အဖြေပေးနိုင်တယ်နော်။",
