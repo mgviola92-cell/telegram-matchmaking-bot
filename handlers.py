@@ -161,6 +161,29 @@ async def home_callback(update, context):
     elif action == "main":
         await show_menu_page(q,say("welcome",q.from_user.id),private_menu())
 
+async def cleanup_request_group_messages(bot, request_id, recipient_id):
+    """Remove public action buttons and obsolete group prompt after private handoff."""
+    refs = await db.get_request_group_messages(request_id, recipient_id)
+    if not refs:
+        return
+    gid = refs["recipient_group_id"]
+    card_id, prompt_id = refs["group_card_message_id"], refs["group_prompt_message_id"]
+    if card_id:
+        try:
+            await bot.edit_message_reply_markup(chat_id=gid,message_id=card_id,reply_markup=None)
+        except TelegramError:
+            logging.info("Could not clear request card buttons for request %s",request_id)
+    if prompt_id:
+        try:
+            await bot.delete_message(chat_id=gid,message_id=prompt_id)
+        except TelegramError:
+            # At minimum remove the button even when deletion is no longer possible.
+            try:
+                await bot.edit_message_reply_markup(chat_id=gid,message_id=prompt_id,reply_markup=None)
+            except TelegramError:
+                logging.info("Could not clear private-handoff prompt for request %s",request_id)
+
+
 async def start(update, context):
     msg = update.effective_message
     if update.effective_chat.type != "private":
@@ -184,6 +207,7 @@ async def start(update, context):
         keyboard = K([[B("💕 လက်ခံမယ်", callback_data=f"decide:{rid}:accepted")],
                       [B("💔 ငြင်းမယ်", callback_data=f"decide:{rid}:rejected")]])
         await show_profile(context.bot, update.effective_chat.id, sender, keyboard)
+        await cleanup_request_group_messages(context.bot,rid,update.effective_user.id)
         return ConversationHandler.END
     if args and args[0].startswith("join_"):
         try:
@@ -520,10 +544,11 @@ async def ask_confirm_callback(update, context):
     except TelegramError:
         pass
     try:
-        await show_profile(context.bot, target_group, source,
+        card = await show_profile(context.bot, target_group, source,
             K([[B("💌 အဖြေပေးမယ်", callback_data=f"reply:{result['id']}:{target_user}")]]),
             header=request_card_title(source,target,result["id"]),
             reply_to_message_id=session["message_id"] if source_group == target_group else None)
+        await db.remember_request_group_message(result["id"],target_user,"card",card.message_id)
     except TelegramError:
         logging.exception("Request group delivery failed; request persisted")
 
@@ -540,9 +565,10 @@ async def reply_callback(update, context):
         return
     me = await context.bot.get_me()
     await q.answer()
-    await q.message.reply_text("💌 ဒီ Request ကို Private Chat မှာ အဖြေပေးနိုင်တယ်နော်။",
+    prompt = await q.message.reply_text("💌 ဒီ Request ကို Private Chat မှာ အဖြေပေးနိုင်တယ်နော်။",
         reply_to_message_id=q.message.message_id,
         reply_markup=K([[B("💗 Private မှာ အဖြေပေးမယ်", url=f"https://t.me/{me.username}?start=reply_{request_id}")]]))
+    await db.remember_request_group_message(request_id,target,"prompt",prompt.message_id)
 
 async def decide_callback(update, context):
     q = update.callback_query
@@ -560,6 +586,7 @@ async def decide_callback(update, context):
         await q.answer("ဒီအချစ်စာလေးကို အဖြေပေးပြီးသား ဖြစ်နိုင်ပါတယ်။", show_alert=True)
         return
     await q.answer("အဖြေလေး သိမ်းထားပြီ 💗")
+    await cleanup_request_group_messages(context.bot,request_id,q.from_user.id)
     try:
         await q.edit_message_reply_markup(reply_markup=None)
     except TelegramError:
@@ -1081,10 +1108,11 @@ async def intro_confirm_callback(update, context):
     except TelegramError:
         pass
     try:
-        await show_profile(context.bot,gid,source,
+        card = await show_profile(context.bot,gid,source,
             K([[B("💕 အဖြေပေးမယ်",callback_data=f"reply:{result['id']}:{target_id}")]]),
             header=request_card_title(source,target,result["id"]),
             reply_to_message_id=getattr(getattr(q.message,"reply_to_message",None),"message_id",None))
+        await db.remember_request_group_message(result["id"],target_id,"card",card.message_id)
     except TelegramError:
         logging.exception("Intro request persisted but delivery failed")
 
