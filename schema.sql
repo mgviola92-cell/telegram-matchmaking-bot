@@ -2,7 +2,8 @@ CREATE TABLE IF NOT EXISTS profiles (
  user_id BIGINT NOT NULL,
  group_id BIGINT NOT NULL,
  display_name TEXT NOT NULL CHECK(length(display_name) BETWEEN 1 AND 60),
- age SMALLINT NOT NULL CHECK(age BETWEEN 18 AND 120),
+ age SMALLINT CHECK(age BETWEEN 18 AND 120),
+ adult_self_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
  bio TEXT CHECK(length(bio)<=300),
  media_type TEXT NOT NULL CHECK(media_type IN ('photo','video')),
  media_file_id TEXT NOT NULL,
@@ -69,3 +70,10 @@ CREATE INDEX IF NOT EXISTS viewed_profiles_viewer ON viewed_profiles(viewer_id,v
 
 -- An optional recipient-authored rejection note is shared only after explicit consent.
 ALTER TABLE requests ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+
+-- Self-declared adult eligibility replaces asking for exact age.
+ALTER TABLE profiles ALTER COLUMN age DROP NOT NULL;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS adult_self_confirmed BOOLEAN NOT NULL DEFAULT FALSE;
+-- Existing pre-change profiles passed an 18+ age field during registration;
+-- carry that previous declaration forward without collecting a new age.
+UPDATE profiles SET adult_self_confirmed=TRUE WHERE age>=18 AND NOT adult_self_confirmed;
