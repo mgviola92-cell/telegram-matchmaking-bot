@@ -12,6 +12,7 @@ from responses import say
 
 CONFIRM_AGE, NAME, AGE, MEDIA, BIO = range(5)
 EDIT_TEXT, EDIT_MEDIA = range(5, 7)
+REJECTION_TEXT = 7
 drafts = {}
 _browse_timer_tasks = {}
 
@@ -473,7 +474,9 @@ async def decide_callback(update, context):
         logging.exception("Could not disable answered request buttons")
     sender_id, recipient_id = result["sender_id"], result["recipient_id"]
     if action == "rejected":
-        await q.message.reply_text("🌷 ဒီတစ်ခေါက်တော့ မိတ်ဆက်ခွင့်လေးကို ငြင်းလိုက်ပြီနော်။")
+        await q.message.reply_text("🌷 ဒီဖိတ်ခေါ်စာကို ငြင်းလိုက်ပြီနော်။ အကြောင်းပြချက်လေးကို မျှဝေချင်မှပဲ ပို့ပေးနိုင်တယ်။",
+            reply_markup=K([[B("💬 စကားလေး ထပ်ပြောမယ်",callback_data=f"reason_start:{request_id}")],
+                            [B("🌷 ဘာမှမပြောတော့ဘူး",callback_data="reason_skip")]]))
         try:
             await context.bot.send_message(sender_id, say("request_rejected",sender_id))
         except TelegramError:
@@ -496,6 +499,74 @@ async def decide_callback(update, context):
         except TelegramError:
             logging.info("Private contact notice could not be delivered")
 
+
+async def reason_start(update, context):
+    q = update.callback_query
+    if q.message.chat.type != "private":
+        await q.answer("Private မှာပဲ ပြောပေးနော်။",show_alert=True)
+        return ConversationHandler.END
+    if q.data == "reason_skip":
+        await q.answer()
+        await q.edit_message_text("🌷 အကြောင်းပြချက် မမျှဝေတော့ဘူးနော်။")
+        return ConversationHandler.END
+    try:
+        rid = int(q.data.split(":",1)[1])
+    except (ValueError,AttributeError):
+        await q.answer("ခလုတ်လေး အဆင်မပြေတော့ဘူး။",show_alert=True)
+        return ConversationHandler.END
+    req = await db.rejected_request_owned(rid,q.from_user.id)
+    if not req or req["rejection_reason"] is not None:
+        await q.answer("ဒီစာအတွက် ထပ်ပြောလို့မရတော့ဘူးနော်။",show_alert=True)
+        return ConversationHandler.END
+    context.user_data["reason_draft"] = {"rid":rid}
+    await q.answer()
+    await q.message.reply_text("💬 မျှဝေချင်တဲ့ စကားလေးကို စာလုံး ၂၀၀ အောက်နဲ့ ရေးပေးနော်။ /cancel နဲ့ ရပ်လို့ရတယ်။")
+    return REJECTION_TEXT
+
+async def reason_text(update, context):
+    draft = context.user_data.get("reason_draft")
+    if not draft:
+        return ConversationHandler.END
+    message = update.message.text.strip()
+    if not 1 <= len(message) <= 200:
+        await update.message.reply_text("🌷 စာလုံး ၁ လုံးကနေ ၂၀၀ အထိပဲ ရေးပေးနော်။")
+        return REJECTION_TEXT
+    draft["text"] = message
+    await update.message.reply_text(
+        "💌 ဒီစကားလေးကို တစ်ဖက်ကို တကယ်မျှဝေမလား?\n\n"+message,
+        reply_markup=K([[B("💌 သဘောတူတယ်၊ မျှဝေမယ်",callback_data="reason_send")],
+                        [B("🌷 မပို့တော့ဘူး",callback_data="reason_cancel")]]))
+    return ConversationHandler.END
+
+async def reason_finish(update, context):
+    q = update.callback_query
+    if q.message.chat.type != "private":
+        await q.answer("Private မှာပဲ လုပ်ပေးနော်။",show_alert=True)
+        return
+    draft = context.user_data.pop("reason_draft",None)
+    if q.data == "reason_cancel":
+        await q.answer()
+        await q.edit_message_text("🌷 စကားလေး မမျှဝေတော့ဘူးနော်။")
+        return
+    if not draft or not draft.get("text"):
+        await q.answer("အတည်ပြုစရာ စကားလေး မရှိတော့ဘူးနော်။",show_alert=True)
+        return
+    req = await db.save_rejection_reason(draft["rid"],q.from_user.id,draft["text"])
+    if not req:
+        await q.answer("ဒီစာလေးကို မျှဝေလို့မရတော့ဘူးနော်။",show_alert=True)
+        return
+    await q.answer("စကားလေး မျှဝေပြီးပြီ")
+    await q.edit_message_text("💌 ကိုယ်သဘောတူတဲ့ စကားလေးကို မျှဝေပြီးပြီနော်။")
+    try:
+        await context.bot.send_message(req["sender_id"],
+            "🌷 ဖိတ်ခေါ်စာအတွက် တစ်ဖက်က မျှဝေဖို့ သဘောတူထားတဲ့ စကားလေးပါ။\n\n"+draft["text"])
+    except TelegramError:
+        logging.info("Could not deliver optional rejection note")
+
+async def reason_cancel(update, context):
+    context.user_data.pop("reason_draft",None)
+    await update.message.reply_text("🌷 စကားလေး မမျှဝေတော့ဘူးနော်။")
+    return ConversationHandler.END
 
 async def inbox(update, context):
     """Private, unified newest-first incoming requests; no polling."""
@@ -965,7 +1036,13 @@ def handlers():
         fallbacks=[CommandHandler("cancel",profile_edit_cancel)],
         allow_reentry=True,
     )
-    return [registration, profile_editor, ChatMemberHandler(membership_change,ChatMemberHandler.CHAT_MEMBER), CommandHandler("register", register), CommandHandler("match", match),
+    reason_editor = ConversationHandler(
+        entry_points=[CallbackQueryHandler(reason_start,pattern=r"^reason_start:")],
+        states={REJECTION_TEXT:[MessageHandler(filters.TEXT & ~filters.COMMAND,reason_text)]},
+        fallbacks=[CommandHandler("cancel",reason_cancel)],
+        allow_reentry=True,
+    )
+    return [registration, profile_editor, reason_editor, ChatMemberHandler(membership_change,ChatMemberHandler.CHAT_MEMBER), CommandHandler("register", register), CommandHandler("match", match),
             CallbackQueryHandler(browse_callback, pattern=r"^browse:"),
             CallbackQueryHandler(browse_mode_callback, pattern=r"^browse_mode:"),
             CallbackQueryHandler(ask_callback, pattern=r"^ask:"),
@@ -979,6 +1056,8 @@ def handlers():
             CallbackQueryHandler(profile_delete_ask,pattern=r"^profile_delete_ask:"),
             CallbackQueryHandler(profile_delete_do,pattern=r"^profile_delete_(do:|cancel$)"),
             CallbackQueryHandler(intro_callback,pattern=r"^intro_(yes:|skip$)"),
+            CallbackQueryHandler(reason_start,pattern=r"^reason_skip$"),
+            CallbackQueryHandler(reason_finish,pattern=r"^reason_(send|cancel)$"),
             CallbackQueryHandler(intro_view,pattern=r"^intro_view:"),
             CallbackQueryHandler(inbox_open, pattern=r"^inbox_open:"),
             CallbackQueryHandler(withdraw_ask, pattern=r"^withdraw_ask:"),
