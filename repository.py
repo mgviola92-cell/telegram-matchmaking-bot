@@ -76,3 +76,18 @@ async def pending_request_for_recipient(request_id, recipient_id):
         return await c.fetchrow("""SELECT * FROM requests
             WHERE id=$1 AND recipient_id=$2 AND status='pending'
             AND expires_at>now()""", request_id, recipient_id)
+
+async def outgoing_requests(sender_id):
+    """Latest still-pending invitations across all source groups."""
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetch("""SELECT * FROM requests
+            WHERE sender_id=$1 AND status='pending' AND expires_at>now()
+            ORDER BY created_at DESC LIMIT 100""", sender_id)
+
+async def user_profiles(user_id):
+    """List the user's active group profiles, newest first."""
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetch("""SELECT * FROM profiles WHERE user_id=$1
+            AND NOT archived ORDER BY created_at DESC LIMIT 100""", user_id)
