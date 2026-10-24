@@ -63,6 +63,10 @@ async def confirm_age(update, context):
     return NAME
 
 async def name_step(update, context):
+    draft = drafts.get(update.effective_user.id)
+    if not draft or not draft.get("adult_confirmed"):
+        await update.message.reply_text("💌 Group ထဲက /register နဲ့ ပြန်စလိုက်နော်။")
+        return ConversationHandler.END
     value = update.message.text.strip()
     if not 1 <= len(value) <= 60:
         await update.message.reply_text("နာမည်လေးကို စာလုံး ၆၀ အောက်နဲ့ ရေးပေးနော်။")
@@ -79,6 +83,9 @@ async def age_step(update, context):
     if not 18 <= age <= 120:
         await update.message.reply_text("အသက် ၁၈ နှစ်ပြည့်ပြီးသူတွေအတွက်ပဲ ဖွင့်ထားတာနော်။ အသက်ကို ပြန်စစ်ပေးပါဦး 💗")
         return AGE
+    if not drafts.get(update.effective_user.id, {}).get("adult_confirmed"):
+        await update.message.reply_text("💌 /register နဲ့ ပြန်စလိုက်နော်။")
+        return ConversationHandler.END
     drafts[update.effective_user.id]["age"] = age
     await update.message.reply_text("📸 ဓာတ်ပုံတစ်ပုံ ဒါမှမဟုတ် Video တိုလေးတစ်ခု ပို့ပေးပါ။")
     return MEDIA
@@ -92,6 +99,9 @@ async def media_step(update, context):
     else:
         await msg.reply_text("ဓာတ်ပုံတစ်ပုံ ဒါမှမဟုတ် စက္ကန့် ၃၀ အောက် Video လေး ပို့ပေးနော်။")
         return MEDIA
+    if not drafts.get(update.effective_user.id, {}).get("adult_confirmed"):
+        await msg.reply_text("💌 /register နဲ့ ပြန်စလိုက်နော်။")
+        return ConversationHandler.END
     drafts[update.effective_user.id].update(media_type=kind, file_id=file_id)
     await msg.reply_text("💬 ကိုယ့်အကြောင်း စာတိုလေး ရေးပေးပါ။ မရေးချင်ရင် /skip နှိပ်နိုင်ပါတယ်။")
     return BIO
