@@ -112,16 +112,30 @@ async def home_callback(update, context):
             await q.message.reply_text(say("inbox_empty",q.from_user.id),
                                        reply_markup=private_menu())
             return
-        await q.message.reply_text("💌 ဝင်စာတွေ ရှိတယ်နော်။ /inbox နဲ့ ဖွင့်ကြည့်နိုင်တယ်။",
-                                   reply_markup=K([[B("💗 ပင်မစာမျက်နှာ",callback_data="home:main")]]))
+        buttons = []
+        for item in rows[:30]:
+            sender = await db.get_profile(item["sender_id"],item["sender_group_id"])
+            if sender:
+                buttons.append([B("💌 "+sender["display_name"][:25],
+                                  callback_data=f"inbox_open:{item['id']}")])
+        buttons.append([B("💗 ပင်မစာမျက်နှာ",callback_data="home:main")])
+        await q.message.reply_text("💌 ရောက်လာတဲ့စာတွေထဲက ဖွင့်ကြည့်ချင်တာ ရွေးနော်။",
+                                   reply_markup=K(buttons))
     elif action == "outgoing":
         rows = await db.outgoing_requests(q.from_user.id)
         if not rows:
             await q.message.reply_text(say("outgoing_empty",q.from_user.id),
                                        reply_markup=private_menu())
             return
-        await q.message.reply_text("📮 ပို့ထားတဲ့စာတွေကို /outgoing မှာ ကြည့်နိုင်တယ်နော်။",
-                                   reply_markup=K([[B("💗 ပင်မစာမျက်နှာ",callback_data="home:main")]]))
+        buttons = []
+        for item in rows[:30]:
+            target = await db.get_profile(item["recipient_id"],item["recipient_group_id"])
+            if target:
+                buttons.append([B("📮 "+target["display_name"][:25]+" · ပြန်ရုပ်သိမ်းမယ်",
+                                  callback_data=f"withdraw_ask:{item['id']}")])
+        buttons.append([B("💗 ပင်မစာမျက်နှာ",callback_data="home:main")])
+        await q.message.reply_text("📮 ကိုယ်ပို့ထားတဲ့ စာလေးတွေကို ဒီမှာ စီမံနိုင်တယ်။",
+                                   reply_markup=K(buttons))
     elif action == "help":
         await q.message.reply_text(
             "🌷 Group ထဲမှာ /register နဲ့ စာရင်းသွင်းနိုင်တယ်။\n"
