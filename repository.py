@@ -189,7 +189,7 @@ async def advance_browse_session(user_id, group_id, message_id, delta):
                 WHERE viewer_id=$1 AND group_id=$2 FOR UPDATE""",user_id,group_id)
             if not row or row["message_id"]!=message_id:
                 return None
-            if (datetime.now(timezone.utc)-row["updated_at"]).total_seconds()>300:
+            if (datetime.now(timezone.utc)-row["updated_at"]).total_seconds()>180:
                 return None
             import json
             keys = row["profile_keys"]
@@ -208,7 +208,7 @@ async def active_browse_session(user_id, group_id):
     async with p.acquire() as c:
         return await c.fetchrow("""SELECT * FROM browse_sessions
             WHERE viewer_id=$1 AND group_id=$2
-            AND updated_at>now()-interval '5 minutes'""",user_id,group_id)
+            AND updated_at>now()-interval '3 minutes'""",user_id,group_id)
 
 async def profile_at(user_id, group_id):
     return await get_profile(user_id,group_id)
@@ -260,7 +260,7 @@ async def recent_browse_sessions():
     p = await pool()
     async with p.acquire() as c:
         return await c.fetch("""SELECT viewer_id,group_id,message_id,updated_at
-            FROM browse_sessions WHERE updated_at>now()-interval '5 minutes'
+            FROM browse_sessions WHERE updated_at>now()-interval '3 minutes'
               AND message_id IS NOT NULL LIMIT 500""")
 
 async def touch_browse_session(user_id,group_id,message_id):
@@ -269,7 +269,7 @@ async def touch_browse_session(user_id,group_id,message_id):
     async with p.acquire() as c:
         return await c.fetchrow("""UPDATE browse_sessions SET updated_at=now()
             WHERE viewer_id=$1 AND group_id=$2 AND message_id=$3
-            AND updated_at>now()-interval '5 minutes' RETURNING *""",
+            AND updated_at>now()-interval '3 minutes' RETURNING *""",
             user_id,group_id,message_id)
 
 async def mark_profile_viewed(viewer_id,viewer_group_id,target_id,target_group_id):
