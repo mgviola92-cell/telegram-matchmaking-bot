@@ -1,7 +1,7 @@
 """Group-specific registration and browsing handlers. No background database polling."""
 import html
 import logging
-from telegram import InlineKeyboardButton as B, InlineKeyboardMarkup as K
+from telegram import InlineKeyboardButton as B, InlineKeyboardMarkup as K, InputMediaPhoto, InputMediaVideo
 from telegram.error import TelegramError
 from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, filters, ConversationHandler
 import repository as db
@@ -171,13 +171,107 @@ async def match(update, context):
         url = f"https://t.me/{me.username}?start=join_{gid}"
         await update.message.reply_text(say("register_invite", uid), reply_markup=K([[B("💗 Profile လေး ဖန်တီးမယ်", url=url)]]))
         return
+    existing = await db.active_browse_session(uid, gid)
+    if existing:
+        await update.message.reply_text("💗 မိတ်ဆက်ကတ်လေး ဖွင့်ထားပြီးသားနော်။ အပေါ်က ကတ်လေးမှာ ဆက်လှည့်ကြည့်လိုက်ပါဦး။")
+        return
     results = await db.browse_profiles(uid, gid, public=False, limit=50)
     if not results:
         await update.message.reply_text(say("no_matches", uid))
         return
     p = results[0]
-    keyboard = K([[B("💌 တောင်းမယ်", callback_data=f"ask:{uid}:{gid}:{p['user_id']}:{p['group_id']}")]])
-    await show_profile(context.bot, gid, p, keyboard)
+    sent = await show_profile(context.bot, gid, p, match_buttons(uid,gid,p,0,len(results),False))
+    keys = [[row["user_id"],row["group_id"]] for row in results]
+    await db.save_browse_session(uid,gid,sent.message_id,False,keys)
+
+
+def match_buttons(uid, gid, p, position, total, public):
+    return K([
+        [B("⬅️ အရင်တစ်ယောက်", callback_data=f"browse:{uid}:{gid}:-1"),
+         B("➡️ နောက်တစ်ယောက်", callback_data=f"browse:{uid}:{gid}:1")],
+        [B("🌍 Public" if not public else "🏡 Group Only",
+           callback_data=f"browse_mode:{uid}:{gid}")],
+        [B("💌 တောင်းမယ်", callback_data=f"ask:{uid}:{gid}:{p['user_id']}:{p['group_id']}")],
+    ])
+
+async def edit_browse_card(q, uid, gid, p, pos, count, public):
+    kwargs = {"caption": caption(p), "parse_mode": "HTML"}
+    if p["media_type"] == "video":
+        media = InputMediaVideo(p["media_file_id"], **kwargs)
+    else:
+        media = InputMediaPhoto(p["media_file_id"], **kwargs)
+    await q.edit_message_media(media=media, reply_markup=match_buttons(uid,gid,p,pos,count,public))
+
+async def browse_callback(update, context):
+    q = update.callback_query
+    try:
+        _, uid_text, gid_text, delta_text = q.data.split(":")
+        uid, gid, delta = int(uid_text), int(gid_text), int(delta_text)
+    except (ValueError, AttributeError):
+        await q.answer("ကတ်လေး အဆင်မပြေတော့ဘူးနော်။", show_alert=True)
+        return
+    if q.from_user.id != uid or q.message.chat.id != gid:
+        await q.answer("ကိုယ့်မိတ်ဆက်ကတ်လေးမှာပဲ လှည့်ကြည့်နိုင်တယ်နော်။", show_alert=True)
+        return
+    session = await db.advance_browse_session(uid,gid,q.message.message_id,delta)
+    if not session:
+        await q.answer("🌷 ကတ်လေး သက်တမ်းကုန်သွားပြီ။ /match နဲ့ ပြန်စကြမယ်နော်။", show_alert=True)
+        try:
+            await q.edit_message_reply_markup(reply_markup=None)
+        except TelegramError:
+            pass
+        return
+    keys = session["profile_keys"]
+    if not keys:
+        await q.answer("လှည့်ကြည့်ဖို့ Profile မရှိတော့ဘူးနော်။", show_alert=True)
+        return
+    if delta > 0 and session["position"] == len(keys)-1:
+        await q.answer("💗 နောက်ဆုံးကတ်လေးအထိ ရောက်နေပြီနော်။")
+    elif delta < 0 and session["position"] == 0:
+        await q.answer("🌷 ပထမဆုံးကတ်လေးအထိ ရောက်နေပြီနော်။")
+    else:
+        await q.answer()
+    key = keys[session["position"]]
+    p = await db.get_profile(key[0],key[1])
+    if not p:
+        await q.answer("ဒီ Profile လေး မရှိတော့ဘူးနော်။", show_alert=True)
+        return
+    try:
+        await edit_browse_card(q,uid,gid,p,session["position"],len(keys),session["public_mode"])
+    except TelegramError:
+        logging.exception("Failed to edit browse card")
+
+async def browse_mode_callback(update, context):
+    q = update.callback_query
+    try:
+        _, uid_text, gid_text = q.data.split(":")
+        uid, gid = int(uid_text), int(gid_text)
+    except (ValueError,AttributeError):
+        await q.answer("ကတ်လေး အဆင်မပြေတော့ဘူးနော်။",show_alert=True)
+        return
+    if q.from_user.id != uid or q.message.chat.id != gid:
+        await q.answer("ကိုယ့်ကတ်လေးမှာပဲ ပြောင်းနိုင်တယ်နော်။",show_alert=True)
+        return
+    session = await db.active_browse_session(uid,gid)
+    if not session or session["message_id"] != q.message.message_id:
+        await q.answer("ကတ်လေး သက်တမ်းကုန်သွားပြီနော်။",show_alert=True)
+        return
+    settings = await db.group_settings(gid)
+    public = not session["public_mode"]
+    if public and not settings["public_browse"]:
+        await q.answer("🌷 ဒီ Group မှာ Public Browse ကို Admin က ပိတ်ထားတယ်နော်။",show_alert=True)
+        return
+    results = await db.browse_profiles(uid,gid,public=public,limit=50)
+    if not results:
+        await q.answer("💌 ဒီ Mode မှာ Profile အသစ် မရှိသေးဘူးနော်။",show_alert=True)
+        return
+    keys = [[r["user_id"],r["group_id"]] for r in results]
+    await db.save_browse_session(uid,gid,q.message.message_id,public,keys)
+    await q.answer("🌍 Public Browse" if public else "🏡 Group Only")
+    try:
+        await edit_browse_card(q,uid,gid,results[0],0,len(results),public)
+    except TelegramError:
+        logging.exception("Failed to switch browse mode")
 
 async def ask_callback(update, context):
     q = update.callback_query
@@ -510,6 +604,8 @@ def handlers():
         allow_reentry=True,
     )
     return [registration, CommandHandler("register", register), CommandHandler("match", match),
+            CallbackQueryHandler(browse_callback, pattern=r"^browse:"),
+            CallbackQueryHandler(browse_mode_callback, pattern=r"^browse_mode:"),
             CallbackQueryHandler(ask_callback, pattern=r"^ask:"), CallbackQueryHandler(reply_callback, pattern=r"^reply:"),
             CallbackQueryHandler(decide_callback, pattern=r"^decide:"),
             CommandHandler("inbox", inbox), CommandHandler("outgoing", outgoing),
