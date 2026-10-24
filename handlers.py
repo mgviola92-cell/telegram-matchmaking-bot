@@ -63,6 +63,9 @@ async def register(update, context):
     if update.effective_chat.type not in ("group", "supergroup"):
         await update.message.reply_text("💗 Group ထဲမှာ /register လို့ ရေးပေးပါနော်။")
         return
+    if not (await db.group_settings(update.effective_chat.id))["registration"]:
+        await update.message.reply_text("🌷 ဒီ Group မှာ Profile စာရင်းသွင်းခြင်းကို Admin က ခဏပိတ်ထားတယ်နော်။")
+        return
     me = await context.bot.get_me()
     url = f"https://t.me/{me.username}?start=join_{update.effective_chat.id}"
     await update.message.reply_text(say("register_invite", update.effective_user.id), reply_markup=K([[B("💗 Profile လေး ဖန်တီးမယ်", url=url)]]))
@@ -159,6 +162,9 @@ async def match(update, context):
         await update.message.reply_text("💗 /match ကို Group ထဲမှာ ဖွင့်ပေးနော်။")
         return
     gid, uid = update.effective_chat.id, update.effective_user.id
+    if not (await db.group_settings(gid))["matchmaking"]:
+        await update.message.reply_text("🌷 ဒီ Group မှာ Matchmaking ကို Admin က ခဏပိတ်ထားတယ်နော်။")
+        return
     own = await db.get_profile(uid, gid)
     if not own:
         me = await context.bot.get_me()
@@ -191,6 +197,9 @@ async def ask_callback(update, context):
     target = await db.get_profile(target_user, target_group)
     if not source or not target:
         await q.answer("Profile လေး မရှိတော့ဘူးနော်။", show_alert=True)
+        return
+    if not (await db.group_settings(source_group))["requests"]:
+        await q.answer("🌷 ဒီ Group မှာ Request ပို့ခြင်းကို ခဏပိတ်ထားတယ်နော်။", show_alert=True)
         return
     result = await db.send_request(invoker, source_group, target_user, target_group)
     if not result:
@@ -436,6 +445,57 @@ async def profile_public(update, context):
           callback_data=f"profile_public:{gid}:{0 if state else 1}")
     ]]))
 
+
+SETTING_LABELS = {
+    "matchmaking": "💗 Matchmaking", "registration": "📝 Registration",
+    "requests": "💌 Requests", "public_browse": "🌍 Public Browse",
+    "intros": "🎀 မိတ်ဆက်ကတ်", "cleanup": "🧹 Cleanup",
+}
+
+async def is_admin(bot, group_id, user_id):
+    try:
+        status = (await bot.get_chat_member(group_id, user_id)).status
+        return status in ("administrator", "creator")
+    except TelegramError:
+        return False
+
+def settings_buttons(row):
+    return K([[B(f"{'✅' if row[name] else '🚫'} {label}",
+                 callback_data=f"setting:{row['group_id']}:{name}")]
+              for name, label in SETTING_LABELS.items()])
+
+async def settings(update, context):
+    if update.effective_chat.type not in ("group", "supergroup"):
+        await update.message.reply_text("🌷 /settings ကို Group ထဲမှာပဲ ဖွင့်နိုင်တယ်နော်။")
+        return
+    gid, uid = update.effective_chat.id, update.effective_user.id
+    if not await is_admin(context.bot, gid, uid):
+        await update.message.reply_text("💗 ဒီအပြင်အဆင်လေးကို Group Admin တွေပဲ ပြောင်းနိုင်တယ်နော်။")
+        return
+    row = await db.group_settings(gid)
+    await update.message.reply_text("🎀 <b>လူတောင်းပွဲ Group Settings</b>\\nဖွင့်/ပိတ်ချင်တာလေးကို နှိပ်ပေးပါနော်။",
+        parse_mode="HTML", reply_markup=settings_buttons(row))
+
+async def setting_callback(update, context):
+    q = update.callback_query
+    try:
+        _, group_id, name = q.data.split(":")
+        gid = int(group_id)
+    except (ValueError, AttributeError):
+        await q.answer("ခလုတ်လေး အဆင်မပြေတော့ဘူးနော်။", show_alert=True)
+        return
+    if (q.message.chat.id != gid or q.message.chat.type not in ("group", "supergroup")
+            or name not in SETTING_LABELS):
+        await q.answer("ဒီ Settings ခလုတ်လေး မမှန်တော့ဘူးနော်။", show_alert=True)
+        return
+    if not await is_admin(context.bot, gid, q.from_user.id):
+        await q.answer("Group Admin တွေပဲ ပြောင်းနိုင်တယ်နော်။", show_alert=True)
+        return
+    current = await db.group_settings(gid)
+    row = await db.set_group_setting(gid, name, not current[name])
+    await q.answer("✅ အပြင်အဆင် သိမ်းထားပြီ")
+    await q.edit_message_reply_markup(reply_markup=settings_buttons(row))
+
 def handlers():
     registration = ConversationHandler(
         entry_points=[CommandHandler("start", start, filters.ChatType.PRIVATE)],
@@ -453,7 +513,9 @@ def handlers():
             CallbackQueryHandler(ask_callback, pattern=r"^ask:"), CallbackQueryHandler(reply_callback, pattern=r"^reply:"),
             CallbackQueryHandler(decide_callback, pattern=r"^decide:"),
             CommandHandler("inbox", inbox), CommandHandler("outgoing", outgoing),
-            CommandHandler("profile", profile), CallbackQueryHandler(profile_view, pattern=r"^profile_view:"),
+            CommandHandler("profile", profile), CommandHandler("settings", settings),
+            CallbackQueryHandler(setting_callback, pattern=r"^setting:"),
+            CallbackQueryHandler(profile_view, pattern=r"^profile_view:"),
             CallbackQueryHandler(profile_public, pattern=r"^profile_public:"),
             CallbackQueryHandler(inbox_open, pattern=r"^inbox_open:"),
             CallbackQueryHandler(withdraw_ask, pattern=r"^withdraw_ask:"),
