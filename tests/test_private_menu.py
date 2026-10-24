@@ -24,6 +24,37 @@ class PrivateMenuTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("home:main",callbacks)
             self.assertIn("profile_public:-100123:"+("0" if is_public else "1"),callbacks)
 
+    async def test_inline_help_edits_same_message(self):
+        msg = SimpleNamespace(chat=SimpleNamespace(type="private",send_message=AsyncMock()),
+                              photo=[],video=None,reply_text=AsyncMock(),delete=AsyncMock())
+        q = SimpleNamespace(data="home:help",message=msg,from_user=SimpleNamespace(id=17),
+                            answer=AsyncMock(),edit_message_text=AsyncMock())
+        await handlers.home_callback(SimpleNamespace(callback_query=q),SimpleNamespace())
+        q.edit_message_text.assert_awaited_once()
+        msg.reply_text.assert_not_awaited()
+        msg.chat.send_message.assert_not_awaited()
+        msg.delete.assert_not_awaited()
+
+    async def test_home_from_media_removes_old_card(self):
+        msg = SimpleNamespace(chat=SimpleNamespace(type="private",send_message=AsyncMock()),
+                              photo=[object()],video=None,delete=AsyncMock(),reply_text=AsyncMock())
+        q = SimpleNamespace(data="home:main",message=msg,from_user=SimpleNamespace(id=17),
+                            answer=AsyncMock(),edit_message_text=AsyncMock())
+        await handlers.home_callback(SimpleNamespace(callback_query=q),SimpleNamespace())
+        msg.delete.assert_awaited_once()
+        msg.chat.send_message.assert_awaited_once()
+        q.edit_message_text.assert_not_awaited()
+
+    async def test_inline_no_profiles_edits_same_message(self):
+        msg = SimpleNamespace(chat=SimpleNamespace(type="private",send_message=AsyncMock()),
+                              photo=[],video=None,delete=AsyncMock(),reply_text=AsyncMock())
+        q = SimpleNamespace(data="home:profile",message=msg,from_user=SimpleNamespace(id=17),
+                            answer=AsyncMock(),edit_message_text=AsyncMock())
+        with patch.object(handlers.db,"user_profiles",AsyncMock(return_value=[])):
+            await handlers.home_callback(SimpleNamespace(callback_query=q),SimpleNamespace())
+        q.edit_message_text.assert_awaited_once()
+        msg.reply_text.assert_not_awaited()
+
     async def test_private_start_sends_menu(self):
         msg = SimpleNamespace(reply_text=AsyncMock())
         u = SimpleNamespace(effective_message=msg,
