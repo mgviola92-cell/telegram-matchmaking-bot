@@ -46,7 +46,7 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 
 ## Current verified implementation snapshot
 - Registration and self-declaration: partial, in-memory conversation draft.
-- One-card match browse and request delivery: basic prototype, **not** full navigation/inbox/reply flow.
+- One-card match browse and request delivery: basic prototype, **not** full navigation. Private reply, accept/reject, inbox, outgoing, and confirmed withdrawal handlers are now present, but runtime integration remains unverified.
 - Dynamic responses: four families connected; all other bot copy pending.
 - PostgreSQL schema, small lazy pool, webhook: present.
-- Automated runtime tests and Render deployment: **not yet verified**.
+- Offline source/response regression tests were added, but have **not been executed**. Runtime integration tests and Render deployment: **not yet verified**.
