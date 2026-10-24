@@ -34,11 +34,47 @@ class OwnerPanelTests(unittest.IsolatedAsyncioTestCase):
             effective_chat=SimpleNamespace(type="private"),
             effective_message=SimpleNamespace(reply_text=AsyncMock()))
         with patch.dict(handlers.os.environ, {"OWNER_ID":"11", "TEST_GROUP_ID":"-100123"}), \
+             patch.object(handlers.db,"get_owner_qa_group",AsyncMock(return_value=-100123)), \
              patch.object(handlers.db,"owner_test_request_count",AsyncMock(return_value=3)):
             await handlers.owner_panel(user,SimpleNamespace())
         call = user.effective_message.reply_text.await_args
         self.assertIn("Owner QA Panel",str(call))
         self.assertIn("owner:ask_reset",str(call))
+
+    async def test_first_owner_visit_requests_group_once(self):
+        user=SimpleNamespace(effective_user=SimpleNamespace(id=11),
+            effective_chat=SimpleNamespace(type="private"),
+            effective_message=SimpleNamespace(reply_text=AsyncMock()))
+        with patch.dict(handlers.os.environ,{"OWNER_ID":"11"}), \
+             patch.object(handlers.db,"get_owner_qa_group",AsyncMock(return_value=None)):
+            result=await handlers.owner_panel(user,SimpleNamespace())
+        self.assertEqual(result,handlers.OWNER_GROUP_INPUT)
+        self.assertIn("Test Group ID",str(user.effective_message.reply_text.await_args))
+
+    async def test_valid_owner_group_is_saved(self):
+        msg=SimpleNamespace(text="-100123",reply_text=AsyncMock())
+        user=SimpleNamespace(effective_user=SimpleNamespace(id=11),
+            effective_chat=SimpleNamespace(type="private"),message=msg)
+        bot=SimpleNamespace(
+            get_me=AsyncMock(return_value=SimpleNamespace(id=55)),
+            get_chat_member=AsyncMock(side_effect=[
+                SimpleNamespace(status="administrator"),
+                SimpleNamespace(status="member")]))
+        with patch.dict(handlers.os.environ,{"OWNER_ID":"11"}), \
+             patch.object(handlers.db,"set_owner_qa_group",AsyncMock()) as saved:
+            result=await handlers.owner_group_input(user,SimpleNamespace(bot=bot))
+        saved.assert_awaited_once_with(11,-100123)
+        self.assertEqual(result,handlers.ConversationHandler.END)
+
+    async def test_non_owner_cannot_save_group(self):
+        msg=SimpleNamespace(text="-100123",reply_text=AsyncMock())
+        user=SimpleNamespace(effective_user=SimpleNamespace(id=99),
+            effective_chat=SimpleNamespace(type="private"),message=msg)
+        with patch.dict(handlers.os.environ,{"OWNER_ID":"11"}), \
+             patch.object(handlers.db,"set_owner_qa_group",AsyncMock()) as saved:
+            await handlers.owner_group_input(user,SimpleNamespace())
+        saved.assert_not_awaited()
+        msg.reply_text.assert_not_awaited()
 
     async def test_other_user_cannot_reset(self):
         query = SimpleNamespace(data="owner:reset",
