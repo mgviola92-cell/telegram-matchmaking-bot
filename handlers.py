@@ -138,8 +138,10 @@ async def match(update, context):
         return
     gid, uid = update.effective_chat.id, update.effective_user.id
     own = await db.get_profile(uid, gid)
-    if not own or own["age"] < 18:
-        await update.message.reply_text("အရင်ဆုံး /register နဲ့ ကိုယ့် Profile လေး ဖန်တီးရအောင်နော် 💌")
+    if not own:
+        me = await context.bot.get_me()
+        url = f"https://t.me/{me.username}?start=join_{gid}"
+        await update.message.reply_text("💌 လှည့်ကြည့်ဖို့ ကိုယ့် Profile လေး အရင်မိတ်ဆက်ရအောင်နော်။", reply_markup=K([[B("💗 Profile လေး ဖန်တီးမယ်", url=url)]]))
         return
     results = await db.browse_profiles(uid, gid, public=False, limit=50)
     if not results:
@@ -165,7 +167,7 @@ async def ask_callback(update, context):
         return
     source = await db.get_profile(invoker, source_group)
     target = await db.get_profile(target_user, target_group)
-    if not source or not target or source["age"] < 18 or target["age"] < 18:
+    if not source or not target:
         await q.answer("Profile လေး မရှိတော့ဘူးနော်။", show_alert=True)
         return
     result = await db.send_request(invoker, source_group, target_user, target_group)
