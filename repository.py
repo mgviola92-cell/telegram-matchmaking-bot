@@ -341,3 +341,17 @@ async def reset_owner_test_requests(owner_id, test_group_id):
             RETURNING id,recipient_id,recipient_group_id,
                       group_card_message_id,group_prompt_message_id""",
             owner_id,test_group_id)
+
+async def get_owner_qa_group(owner_id):
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetchval(
+            "SELECT test_group_id FROM owner_qa_settings WHERE owner_id=$1",owner_id)
+
+async def set_owner_qa_group(owner_id,test_group_id):
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetchval("""INSERT INTO owner_qa_settings(owner_id,test_group_id)
+            VALUES($1,$2) ON CONFLICT(owner_id) DO UPDATE SET
+            test_group_id=excluded.test_group_id,updated_at=now()
+            RETURNING test_group_id""",owner_id,test_group_id)
