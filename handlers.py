@@ -6,7 +6,7 @@ import json
 import logging
 from telegram import InlineKeyboardButton as B, InlineKeyboardMarkup as K, InputMediaPhoto, InputMediaVideo
 from telegram.error import TelegramError
-from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, filters, ConversationHandler
+from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, ChatMemberHandler, filters, ConversationHandler
 import repository as db
 from responses import say
 
@@ -102,6 +102,9 @@ async def start(update, context):
             gid = int(args[0][5:])
         except ValueError:
             await msg.reply_text("ဒီလင့်ခ်လေး အဆင်မပြေတော့ဘူးနော်။")
+            return ConversationHandler.END
+        if not (await db.group_settings(gid))["registration"]:
+            await msg.reply_text("🌷 ဒီ Group မှာ မိတ်ဆက်ကတ်စာရင်းသွင်းခြင်း ခဏပိတ်ထားတယ်နော်။")
             return ConversationHandler.END
         if not await member(context.bot, gid, update.effective_user.id):
             await msg.reply_text("အဲဒီ Group ထဲမှာ အရင်ဝင်ထားဖို့ လိုတယ်နော် 💗")
@@ -861,9 +864,9 @@ async def intro_view(update, context):
         logging.exception("Intro request persisted but delivery failed")
 
 SETTING_LABELS = {
-    "matchmaking": "💗 Matchmaking", "registration": "📝 Registration",
-    "requests": "💌 Requests", "public_browse": "🌍 Public Browse",
-    "intros": "🎀 မိတ်ဆက်ကတ်", "cleanup": "🧹 Cleanup",
+    "matchmaking": "💗 ဆုံတွေ့ခွင့်", "registration": "📝 မိတ်ဆက်ကတ် စာရင်းသွင်းခွင့်",
+    "requests": "💌 ဖိတ်ခေါ်စာပို့ခွင့်", "public_browse": "🌍 အများမြင်ကတ် လှည့်ကြည့်ခွင့်",
+    "intros": "🎀 မိတ်ဆက်ကတ် တင်ခွင့်", "cleanup": "🧹 ကတ်ဟောင်း ရှင်းလင်းခွင့်",
 }
 
 async def is_admin(bot, group_id, user_id):
@@ -887,7 +890,7 @@ async def settings(update, context):
         await update.message.reply_text("💗 ဒီအပြင်အဆင်လေးကို Group Admin တွေပဲ ပြောင်းနိုင်တယ်နော်။")
         return
     row = await db.group_settings(gid)
-    await update.message.reply_text("🎀 <b>လူတောင်းပွဲ Group Settings</b>\\nဖွင့်/ပိတ်ချင်တာလေးကို နှိပ်ပေးပါနော်။",
+    await update.message.reply_text("🎀 <b>လူတောင်းပွဲ Group Settings</b>\nဖွင့်/ပိတ်ချင်တာလေးကို နှိပ်ပေးပါနော်။",
         parse_mode="HTML", reply_markup=settings_buttons(row))
 
 async def setting_callback(update, context):
@@ -910,6 +913,25 @@ async def setting_callback(update, context):
     await q.answer("✅ အပြင်အဆင် သိမ်းထားပြီ")
     await q.edit_message_reply_markup(reply_markup=settings_buttons(row))
 
+async def membership_change(update, context):
+    """Archive a departing adult's profile; restore on return without discarding data."""
+    event = update.chat_member
+    if not event or event.chat.type not in ("group","supergroup"):
+        return
+    target = event.new_chat_member.user
+    if target.is_bot:
+        return
+    old, new = event.old_chat_member.status, event.new_chat_member.status
+    gone = ("left", "kicked")
+    active = ("member", "administrator", "creator")
+    try:
+        if new in gone and old not in gone:
+            await db.archive_profile(target.id,event.chat.id)
+        elif new in active and old in gone:
+            await db.restore_profile(target.id,event.chat.id)
+    except Exception:
+        logging.exception("Could not update profile archive status")
+
 def handlers():
     registration = ConversationHandler(
         entry_points=[CommandHandler("start", start, filters.ChatType.PRIVATE)],
@@ -931,7 +953,7 @@ def handlers():
         fallbacks=[CommandHandler("cancel",profile_edit_cancel)],
         allow_reentry=True,
     )
-    return [registration, profile_editor, CommandHandler("register", register), CommandHandler("match", match),
+    return [registration, profile_editor, ChatMemberHandler(membership_change,ChatMemberHandler.CHAT_MEMBER), CommandHandler("register", register), CommandHandler("match", match),
             CallbackQueryHandler(browse_callback, pattern=r"^browse:"),
             CallbackQueryHandler(browse_mode_callback, pattern=r"^browse_mode:"),
             CallbackQueryHandler(ask_callback, pattern=r"^ask:"),
