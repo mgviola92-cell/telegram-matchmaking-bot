@@ -27,6 +27,7 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 ## Requests — agreed, mostly pending
 - Sender confirms in source group; recipient gets sender's full profile card in the recipient profile's group, not unsolicited DM.
 - Recipient responds privately; accept/reject restricted to recipient.
+- Request group card clearly labels requester, recipient and request ID. The recipient-only group reply button creates at most one private-handoff prompt. Request card/prompt Telegram message IDs are stored; opening the private reply removes the card button and deletes (or disables) the prompt. Decision also invokes best-effort cleanup.
 - Acceptance congratulates both groups (once if same group), then sends mutual Telegram contact links privately.
 - Rejection may include optional reason, only published with recipient's consent. Recipient-authorized optional reason entry, preview and share confirmation are coded; runtime E2E test pending.
 - Pending expires after 24h. Reject cooldown 12h; accept cooldown 24h. Decision-time cooldown queries are now coded, but integration tests pending. Unlimited distinct recipients; no duplicate active request to same recipient.
