@@ -26,7 +26,7 @@ class SourceChecks(unittest.TestCase):
         source = (ROOT / "handlers.py").read_text(encoding="utf-8")
         for event in ("profile_updated", "profile_deleted", "request_withdrawn",
                       "intro_published", "request_accepted", "match_in_progress"):
-            self.assertIn('say("'+event+'"', source)
+            self.assertTrue(('say("'+event+'"' in source) or ("say('"+event+"'" in source), event)
 
     def test_request_flow_requires_confirmation(self):
         source = (ROOT / "handlers.py").read_text(encoding="utf-8")
