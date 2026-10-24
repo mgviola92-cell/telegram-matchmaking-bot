@@ -66,3 +66,6 @@ CREATE TABLE IF NOT EXISTS viewed_profiles (
  PRIMARY KEY(viewer_id,viewer_group_id,target_id,target_group_id)
 );
 CREATE INDEX IF NOT EXISTS viewed_profiles_viewer ON viewed_profiles(viewer_id,viewer_group_id);
+
+-- An optional recipient-authored rejection note is shared only after explicit consent.
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
