@@ -78,8 +78,15 @@ async def resolve_request(request_id, recipient_id, action):
         raise ValueError("Invalid action")
     p = await pool()
     async with p.acquire() as c:
-        return await c.fetchrow("""UPDATE requests SET status=$3,decided_at=now() WHERE id=$1 AND recipient_id=$2
-          AND status='pending' AND expires_at>now() RETURNING *""",request_id,recipient_id,action)
+        return await c.fetchrow("""UPDATE requests r SET status=$3,decided_at=now()
+          WHERE r.id=$1 AND r.recipient_id=$2 AND r.status='pending' AND r.expires_at>now()
+            AND EXISTS (SELECT 1 FROM profiles sender
+              WHERE sender.user_id=r.sender_id AND sender.group_id=r.sender_group_id
+                AND NOT sender.archived AND sender.age>=18)
+            AND EXISTS (SELECT 1 FROM profiles recipient
+              WHERE recipient.user_id=r.recipient_id AND recipient.group_id=r.recipient_group_id
+                AND NOT recipient.archived AND recipient.age>=18)
+          RETURNING r.*""",request_id,recipient_id,action)
 
 async def withdraw_request(request_id, sender_id):
     p = await pool()
