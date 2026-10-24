@@ -91,7 +91,16 @@ def private_menu():
 async def show_menu_page(q, text, keyboard):
     """Replace one inline page, not a new chat bubble."""
     if q.message.photo or q.message.video:
-        await q.message.delete()
+        # Switching media -> text requires replacing the message type.
+        # Publish the new menu only after successfully removing the old card.
+        try:
+            await q.message.delete()
+        except TelegramError:
+            logging.warning("Cannot remove old media menu; aborting navigation")
+            await q.message.chat.send_message(
+                "🌷 ကတ်အဟောင်းကို ဖယ်မရလို့ ဒီခလုတ်တွေကို ပြန်သုံးပေးနော်။",
+                reply_markup=private_menu())
+            return
         await q.message.chat.send_message(text, reply_markup=keyboard)
     else:
         try:
@@ -790,7 +799,8 @@ async def profile_view(update, context):
     try:
         await q.message.delete()
     except TelegramError:
-        logging.info("Previous profile picker could not be deleted")
+        await q.answer("ကတ်အဟောင်းကို ဖျက်မရလို့ ပြန်စမ်းပေးနော်။", show_alert=True)
+        return
     await show_profile(context.bot, q.from_user.id, p, actions)
 
 async def profile_public(update, context):
