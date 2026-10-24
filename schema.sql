@@ -74,6 +74,3 @@ ALTER TABLE requests ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 -- Self-declared adult eligibility replaces asking for exact age.
 ALTER TABLE profiles ALTER COLUMN age DROP NOT NULL;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS adult_self_confirmed BOOLEAN NOT NULL DEFAULT FALSE;
--- Existing pre-change profiles passed an 18+ age field during registration;
--- carry that previous declaration forward without collecting a new age.
-UPDATE profiles SET adult_self_confirmed=TRUE WHERE age>=18 AND NOT adult_self_confirmed;
