@@ -31,8 +31,8 @@ class SourceChecks(unittest.TestCase):
 
     def test_request_resolution_requires_active_profiles(self):
         source = (ROOT / "repository.py").read_text(encoding="utf-8")
-        self.assertIn('sender.age>=18', source)
-        self.assertIn('recipient.age>=18', source)
+        self.assertIn('sender.adult_self_confirmed', source)
+        self.assertIn('recipient.adult_self_confirmed', source)
         self.assertIn('viewed_profiles', source)
 
     def test_consent_and_cleanup_paths_exist(self):
@@ -45,6 +45,13 @@ class SourceChecks(unittest.TestCase):
         self.assertIn("profile_keys @>", repository)
         self.assertIn("rejection_reason", schema)
         self.assertIn("viewed_profiles", schema)
+
+    def test_only_one_adult_confirmation_at_registration(self):
+        handlers = (ROOT / "handlers.py").read_text(encoding="utf-8")
+        self.assertNotIn("async def age_step", handlers)
+        self.assertNotIn("d[\"age\"]", handlers)
+        self.assertIn("adult_confirmed", handlers)
+        self.assertNotIn('return AGE', handlers)
 
     def test_private_invitation_commands_exist(self):
         source = (ROOT / "handlers.py").read_text(encoding="utf-8")
