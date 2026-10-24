@@ -599,7 +599,7 @@ async def browse_mode_callback(update, context):
     settings = await db.group_settings(gid)
     public = not session["public_mode"]
     if public and not settings["public_browse"]:
-        await q.answer("🌷 ဒီ Group မှာ Public Browse ကို Admin က ပိတ်ထားတယ်နော်။",show_alert=True)
+        await q.answer("🌷 ဒီဝိုင်းက ဝိုင်းကျော်လှည့်ခွင့် ခဏပိတ်ထားတယ်နော်။",show_alert=True)
         return
     results = await db.browse_profiles(uid,gid,public=public,limit=50)
     if not results:
@@ -645,13 +645,13 @@ async def ask_callback(update, context):
         await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။", show_alert=True)
         return
     if not (await db.group_settings(source_group))["requests"]:
-        await q.answer("🌷 ဒီ Group မှာ Request ပို့ခြင်းကို ခဏပိတ်ထားတယ်နော်။", show_alert=True)
+        await q.answer("🌷 ဒီဝိုင်းမှာ လူတောင်းစာ ပို့ခွင့် ခဏပိတ်ထားတယ်နော်။", show_alert=True)
         return
     await q.answer()
     await q.message.reply_text(f"💌 <b>{html.escape(source['display_name'])}</b> က <b>{html.escape(target['display_name'])}</b> ဆီ ဖိတ်ခေါ်စာ ပို့မလား?",
         parse_mode="HTML", reply_to_message_id=q.message.message_id,
-        reply_markup=K([[B("💕 သေချာပို့မယ်",callback_data=f"ask_confirm:{invoker}:{source_group}:{target_user}:{target_group}")],
-                        [B("🌷 မပို့တော့ဘူး",callback_data=f"ask_cancel:{invoker}:{source_group}:{target_user}:{target_group}")]]))
+        reply_markup=K([[B("💌 တကယ်တောင်းမယ်",callback_data=f"ask_confirm:{invoker}:{source_group}:{target_user}:{target_group}")],
+                        [B("🌷 စိတ်ပြောင်းပြီ",callback_data=f"ask_cancel:{invoker}:{source_group}:{target_user}:{target_group}")]]))
     return
 
 async def ask_confirm_callback(update, context):
@@ -735,7 +735,7 @@ async def reply_callback(update, context):
         return
     me = await context.bot.get_me()
     await q.answer()
-    prompt = await q.message.reply_text("💌 ဒီ Request ကို Private Chat မှာ အဖြေပေးနိုင်တယ်နော်။",
+    prompt = await q.message.reply_text("💌 ဒီလူတောင်းစာလေးကို နှစ်ယောက်တည်း အေးဆေးအဖြေပေးကြမယ်နော်။",
         reply_to_message_id=q.message.message_id,
         reply_markup=K([[B("💗 Private မှာ အဖြေပေးမယ်", url=f"https://t.me/{me.username}?start=reply_{request_id}")]]))
     await db.remember_request_group_message(request_id,target,"prompt",prompt.message_id)
@@ -824,7 +824,7 @@ async def reason_text(update, context):
     await update.message.reply_text(
         "💌 ဒီစကားလေးကို တစ်ဖက်ကို တကယ်မျှဝေမလား?\n\n"+message,
         reply_markup=K([[B("💌 သဘောတူတယ်၊ မျှဝေမယ်",callback_data="reason_send")],
-                        [B("🌷 မပို့တော့ဘူး",callback_data="reason_cancel")]]))
+                        [B("🌷 စိတ်ပြောင်းပြီ",callback_data="reason_cancel")]]))
     return ConversationHandler.END
 
 async def reason_finish(update, context):
@@ -1213,11 +1213,11 @@ async def intro_view(update, context):
         return
     sender_id = q.from_user.id
     if q.message.chat.id != gid or sender_id == target_id:
-        await q.answer("ဒီမိတ်ဆက်ကတ်လေးမှာ တောင်းလို့မရဘူးနော်။",show_alert=True)
+        await q.answer("ဒီကတ်လေးကို လူတောင်းလို့မရဘူးနော်။",show_alert=True)
         return
     settings = await db.group_settings(gid)
     if not settings["requests"] or not settings["intros"]:
-        await q.answer("ဒီ Group မှာ မိတ်ဆက်ခွင့် တောင်းတာကို ခဏပိတ်ထားတယ်နော်။",show_alert=True)
+        await q.answer("ဒီဝိုင်းမှာ လူတောင်းပွဲ ခဏနားထားတယ်နော်။",show_alert=True)
         return
     if not await member(context.bot,gid,sender_id) or not await member(context.bot,gid,target_id):
         await q.answer("Group ထဲမှာ အဖွဲ့ဝင်ဖြစ်ဖို့ လိုတယ်နော်။",show_alert=True)
@@ -1237,8 +1237,8 @@ async def intro_view(update, context):
     await q.answer()
     await q.message.reply_text(f"💌 <b>{html.escape(source['display_name'])}</b> က <b>{html.escape(target['display_name'])}</b> ဆီ မိတ်ဆက်ခွင့် တကယ်တောင်းမလား?",
         parse_mode="HTML", reply_to_message_id=q.message.message_id,
-        reply_markup=K([[B("💌 သေချာပို့မယ်",callback_data=f"intro_confirm:{sender_id}:{gid}:{target_id}")],
-                        [B("🌷 မပို့တော့ဘူး",callback_data=f"intro_cancel:{sender_id}:{gid}:{target_id}")]]))
+        reply_markup=K([[B("💌 တကယ်တောင်းမယ်",callback_data=f"intro_confirm:{sender_id}:{gid}:{target_id}")],
+                        [B("🌷 စိတ်ပြောင်းပြီ",callback_data=f"intro_cancel:{sender_id}:{gid}:{target_id}")]]))
 
 
 async def intro_confirm_callback(update, context):
@@ -1313,10 +1313,10 @@ async def settings(update, context):
         return
     gid, uid = update.effective_chat.id, update.effective_user.id
     if not await is_admin(context.bot, gid, uid):
-        await update.message.reply_text("💗 ဒီအပြင်အဆင်လေးကို Group Admin တွေပဲ ပြောင်းနိုင်တယ်နော်။")
+        await update.message.reply_text("🌷 ဒီဝိုင်းစည်းကမ်းတွေက Admin တွေပဲ ပြောင်းလို့ရတာနော်။")
         return
     row = await db.group_settings(gid)
-    await update.message.reply_text("🎀 <b>လူတောင်းပွဲ Group Settings</b>\nဖွင့်/ပိတ်ချင်တာလေးကို နှိပ်ပေးပါနော်။",
+    await update.message.reply_text("🎀 <b>လူတောင်းပွဲ ဝိုင်းစည်းကမ်း</b>\nဒီဝိုင်းမှာ ဘာတွေဖွင့်ထားမလဲ ရွေးလိုက်နော်။",
         parse_mode="HTML", reply_markup=settings_buttons(row))
 
 async def setting_callback(update, context):
