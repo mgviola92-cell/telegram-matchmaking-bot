@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import html
 import json
 import logging
+import os
 from telegram import InlineKeyboardButton as B, InlineKeyboardMarkup as K, InputMediaPhoto, InputMediaVideo
 from telegram.error import TelegramError
 from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, ChatMemberHandler, filters, ConversationHandler
@@ -78,6 +79,87 @@ async def member(bot, group_id, user_id):
         return m.status in ("member", "administrator", "creator")
     except TelegramError:
         return False
+
+def owner_config():
+    """Off by default; never infer owners from group admin status."""
+    try:
+        owner_id = int(os.getenv("OWNER_ID", "0"))
+        test_group_id = int(os.getenv("TEST_GROUP_ID", "0"))
+    except ValueError:
+        return 0, 0
+    return owner_id, test_group_id
+
+def is_bot_owner(update):
+    owner_id, _ = owner_config()
+    user = update.effective_user
+    return bool(owner_id and user and user.id == owner_id)
+
+async def owner_panel(update, context):
+    """Silently ignore everyone except the configured owner in bot private chat."""
+    if not is_bot_owner(update) or update.effective_chat.type != "private":
+        return
+    _, group_id = owner_config()
+    if not group_id:
+        await update.effective_message.reply_text(
+            "🧪 Owner QA Panel\nTEST_GROUP_ID မသတ်မှတ်ရသေးလို့ Reset Mode ပိတ်ထားပါတယ်။")
+        return
+    count = await db.owner_test_request_count(update.effective_user.id, group_id)
+    await update.effective_message.reply_text(
+        f"🧪 <b>Owner QA Panel</b>\nTest Group: <code>{group_id}</code>\n"
+        f"Reset လုပ်နိုင်တဲ့ ကိုယ်ပို့ထားသော Test Request: <b>{count}</b> ခု\n"
+        "တကယ့် Group တွေရဲ့ Cooldown ကို မပြောင်းပါဘူး။",
+        parse_mode="HTML",
+        reply_markup=K([[B("♻️ Test Request Reset",callback_data="owner:ask_reset")],
+                        [B("🔄 ပြန်စစ်မယ်",callback_data="owner:refresh")]]))
+
+async def owner_callback(update, context):
+    q = update.callback_query
+    if not is_bot_owner(update) or q.message.chat.type != "private":
+        # No answer or message on unauthorized owner actions.
+        return
+    owner_id, group_id = owner_config()
+    if not group_id:
+        await q.answer("TEST_GROUP_ID မရှိသေးဘူး။",show_alert=True)
+        return
+    action = q.data.split(":",1)[1]
+    if action == "ask_reset":
+        count = await db.owner_test_request_count(owner_id,group_id)
+        await q.answer()
+        await q.edit_message_text(
+            f"🧪 Test Group <code>{group_id}</code> ထဲမှာ ကိုယ်ပို့ထားတဲ့ Request "
+            f"<b>{count}</b> ခုကို ဖျက်ပြီး ထပ်စမ်းနိုင်အောင် ပြန်စမလား?",
+            parse_mode="HTML",
+            reply_markup=K([[B("✅ Test Request များ Reset",callback_data="owner:reset")],
+                            [B("↩️ မလုပ်တော့ဘူး",callback_data="owner:refresh")]]))
+        return
+    if action == "reset":
+        rows = await db.reset_owner_test_requests(owner_id,group_id)
+        for request in rows:
+            for key in ("group_card_message_id","group_prompt_message_id"):
+                message_id = request[key]
+                if message_id:
+                    try:
+                        await context.bot.delete_message(group_id,message_id)
+                    except TelegramError:
+                        try:
+                            await context.bot.edit_message_reply_markup(
+                                chat_id=group_id,message_id=message_id,reply_markup=None)
+                        except TelegramError:
+                            logging.info("Old test request message unavailable for cleanup")
+        await q.answer("Test Requests Reset ပြီးပြီ")
+        await q.edit_message_text(
+            f"✅ Test Group ထဲမှာ ကိုယ်ပို့ထားတဲ့ Request {len(rows)} ခုကို Reset လုပ်ပြီးပြီ။\n"
+            "ပုံမှန် Request Rules တွေကတော့ မပြောင်းပါဘူး။",
+            reply_markup=K([[B("🔄 Owner Panel",callback_data="owner:refresh")]]))
+        return
+    if action == "refresh":
+        count = await db.owner_test_request_count(owner_id,group_id)
+        await q.answer()
+        await q.edit_message_text(
+            f"🧪 <b>Owner QA Panel</b>\nTest Group: <code>{group_id}</code>\n"
+            f"ကိုယ်ပို့ထားသော Test Request: <b>{count}</b> ခု",
+            parse_mode="HTML",
+            reply_markup=K([[B("♻️ Test Request Reset",callback_data="owner:ask_reset")]]))
 
 def private_menu():
     """Telegram-native inline navigation; no web app."""
@@ -1217,7 +1299,8 @@ def handlers():
         fallbacks=[CommandHandler("cancel",reason_cancel)],
         allow_reentry=True,
     )
-    return [registration, profile_editor, reason_editor, ChatMemberHandler(membership_change,ChatMemberHandler.CHAT_MEMBER), CommandHandler("register", register), CommandHandler("match", match),
+    return [registration, profile_editor, reason_editor, CommandHandler("owner",owner_panel),
+            CallbackQueryHandler(owner_callback,pattern=r"^owner:"), ChatMemberHandler(membership_change,ChatMemberHandler.CHAT_MEMBER), CommandHandler("register", register), CommandHandler("match", match),
             CallbackQueryHandler(browse_callback, pattern=r"^browse:"),
             CallbackQueryHandler(browse_mode_callback, pattern=r"^browse_mode:"),
             CallbackQueryHandler(ask_callback, pattern=r"^ask:"),
