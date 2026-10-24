@@ -39,3 +39,9 @@ CREATE TABLE IF NOT EXISTS group_settings (
  intros BOOLEAN NOT NULL DEFAULT TRUE,
  cleanup BOOLEAN NOT NULL DEFAULT TRUE
 );
+
+-- Resolve-time cooldowns must measure from decision time, not request creation.
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS decided_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS request_decision_cooldown
+    ON requests(sender_id,recipient_id,decided_at DESC)
+    WHERE status IN ('accepted','rejected');
