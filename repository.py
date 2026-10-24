@@ -319,3 +319,25 @@ async def get_request_group_messages(request_id,recipient_id):
         return await c.fetchrow("""SELECT id, recipient_group_id,
                 group_card_message_id,group_prompt_message_id
             FROM requests WHERE id=$1 AND recipient_id=$2""",request_id,recipient_id)
+
+async def owner_test_request_count(owner_id, test_group_id):
+    """Count only owner-originated test requests in the dedicated test group."""
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetchval("""SELECT count(*) FROM requests
+            WHERE sender_id=$1 AND sender_group_id=$2 AND recipient_group_id=$2""",
+            owner_id,test_group_id)
+
+async def reset_owner_test_requests(owner_id, test_group_id):
+    """Clean owner-originated request test fixtures only, never arbitrary users' requests.
+
+    Removes request rows solely inside the explicitly configured test group.
+    This does not bypass the normal request checks for production groups.
+    """
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetch("""DELETE FROM requests
+            WHERE sender_id=$1 AND sender_group_id=$2 AND recipient_group_id=$2
+            RETURNING id,recipient_id,recipient_group_id,
+                      group_card_message_id,group_prompt_message_id""",
+            owner_id,test_group_id)
