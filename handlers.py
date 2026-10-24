@@ -312,16 +312,12 @@ async def cancel(update, context):
     return ConversationHandler.END
 
 def request_card_title(sender, recipient, request_id):
-    """Explicitly label both participants above the sender's media."""
-    from_name = html.escape(sender["display_name"])
-    to_name = html.escape(recipient["display_name"])
-    return (
-        f"💌 <b>မိတ်ဆက်ခွင့် တောင်းဆိုချက် #{request_id}</b>\n"
-        f"📤 <b>တောင်းဆိုသူ:</b> {from_name}\n"
-        f"📥 <b>လက်ခံမယ့်သူ:</b> {to_name}\n"
-        "────────────\n"
-        "👇 အောက်ပါ Profile က <b>တောင်းဆိုသူ</b> ရဲ့ ကတ်ပါ။\n\n"
-    )
+    """Compact one-line request context; no duplicate profile explanation."""
+    from_name = html.escape(sender["display_name"][:40])
+    to_name = html.escape(recipient["display_name"][:40])
+    return f"💌 <b>{from_name} → {to_name}</b> · #{request_id}\n"
+
+
 
 
 async def show_profile(bot, chat_id, p, keyboard, *, header="", reply_to_message_id=None):
