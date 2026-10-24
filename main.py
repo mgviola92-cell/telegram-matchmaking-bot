@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
         if os.getenv("DATABASE_URL"):
             await restore_browse_timeouts(telegram_app.bot)
         if BASE_URL and SECRET:
-            await telegram_app.bot.set_webhook(BASE_URL + "/telegram/webhook", secret_token=SECRET)
+            await telegram_app.bot.set_webhook(BASE_URL + "/telegram/webhook", secret_token=SECRET, allowed_updates=Update.ALL_TYPES)
         else:
             logging.warning("PUBLIC_BASE_URL or WEBHOOK_SECRET missing; webhook not registered")
     else:
