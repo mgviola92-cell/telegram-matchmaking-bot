@@ -280,3 +280,21 @@ async def mark_profile_viewed(viewer_id,viewer_group_id,target_id,target_group_i
             ON CONFLICT(viewer_id,viewer_group_id,target_id,target_group_id)
             DO UPDATE SET last_seen_at=now()""",
             viewer_id,viewer_group_id,target_id,target_group_id)
+
+async def rejected_request_owned(request_id,recipient_id):
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetchrow("""SELECT id,sender_id,recipient_id,rejection_reason FROM requests
+            WHERE id=$1 AND recipient_id=$2 AND status='rejected'
+              AND decided_at>now()-interval '24 hours'""",request_id,recipient_id)
+
+async def save_rejection_reason(request_id,recipient_id,reason):
+    """One-time, owner-authorized share; cannot overwrite an earlier consent."""
+    if not reason or len(reason)>200:
+        raise ValueError("Rejection note must be between 1 and 200 characters")
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetchrow("""UPDATE requests SET rejection_reason=$3
+            WHERE id=$1 AND recipient_id=$2 AND status='rejected'
+              AND rejection_reason IS NULL AND decided_at>now()-interval '24 hours'
+            RETURNING sender_id""",request_id,recipient_id,reason)
