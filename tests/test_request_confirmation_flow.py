@@ -95,10 +95,50 @@ class RequestConfirmationTests(unittest.IsolatedAsyncioTestCase):
     async def test_reply_button_prompt_references_request_card(self):
         update = fake_update("reply:123:11",user_id=11,message_id=55)
         bot=SimpleNamespace(get_me=AsyncMock(return_value=SimpleNamespace(username="example_bot")))
-        await handlers.reply_callback(update,SimpleNamespace(bot=bot))
+        prompt = SimpleNamespace(message_id=88)
+        update.callback_query.message.reply_text.return_value=prompt
+        with patch.object(handlers.db,"remember_request_group_message",AsyncMock()) as saved:
+            await handlers.reply_callback(update,SimpleNamespace(bot=bot))
+        saved.assert_awaited_once_with(123,11,"prompt",88)
         msg=update.callback_query.message
         self.assertEqual(msg.reply_text.await_args.kwargs["reply_to_message_id"],55)
         self.assertIn("reply_123",str(msg.reply_text.await_args))
+
+    async def test_group_handoff_disables_card_and_deletes_prompt(self):
+        refs={"recipient_group_id":-1007,"group_card_message_id":55,
+              "group_prompt_message_id":56}
+        bot=SimpleNamespace(edit_message_reply_markup=AsyncMock(),
+                            delete_message=AsyncMock())
+        with patch.object(handlers.db,"get_request_group_messages",AsyncMock(return_value=refs)):
+            await handlers.cleanup_request_group_messages(bot,9,11)
+        bot.edit_message_reply_markup.assert_awaited_once_with(
+            chat_id=-1007,message_id=55,reply_markup=None)
+        bot.delete_message.assert_awaited_once_with(chat_id=-1007,message_id=56)
+
+    async def test_handoff_fallback_disables_prompt_button(self):
+        from telegram.error import BadRequest
+        refs={"recipient_group_id":-1007,"group_card_message_id":55,
+              "group_prompt_message_id":56}
+        bot=SimpleNamespace(edit_message_reply_markup=AsyncMock(),
+                            delete_message=AsyncMock(side_effect=BadRequest("not deletable")))
+        with patch.object(handlers.db,"get_request_group_messages",AsyncMock(return_value=refs)):
+            await handlers.cleanup_request_group_messages(bot,9,11)
+        self.assertEqual(bot.edit_message_reply_markup.await_count,2)
+
+    async def test_open_private_reply_cleans_group_messages(self):
+        msg=SimpleNamespace(reply_text=AsyncMock())
+        update=SimpleNamespace(effective_message=msg,
+            effective_chat=SimpleNamespace(id=11,type="private"),
+            effective_user=SimpleNamespace(id=11))
+        req={"id":9,"sender_id":22,"sender_group_id":-1007}
+        source={"display_name":"Tester","bio":"","media_type":"photo","media_file_id":"file1"}
+        bot=SimpleNamespace(send_photo=AsyncMock(return_value=SimpleNamespace(message_id=33)))
+        with patch.object(handlers.db,"pending_request_for_recipient",AsyncMock(return_value=req)), \
+             patch.object(handlers.db,"get_profile",AsyncMock(return_value=source)), \
+             patch.object(handlers,"cleanup_request_group_messages",AsyncMock()) as cleanup:
+            await handlers.start(update,SimpleNamespace(args=["reply_9"],bot=bot))
+        bot.send_photo.assert_awaited_once()
+        cleanup.assert_awaited_once_with(bot,9,11)
 
     async def test_other_user_cannot_confirm(self):
         update = fake_update("ask_confirm:11:-1007:22:-1007",user_id=99)
