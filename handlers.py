@@ -6,7 +6,7 @@ from telegram.error import TelegramError
 from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, filters, ConversationHandler
 import repository as db
 
-NAME, AGE, MEDIA, BIO = range(4)
+CONFIRM_AGE, NAME, AGE, MEDIA, BIO = range(5)
 drafts = {}
 
 def caption(p):
@@ -35,8 +35,8 @@ async def start(update, context):
             await msg.reply_text("အဲဒီ Group ထဲမှာ အရင်ဝင်ထားဖို့ လိုတယ်နော် 💗")
             return ConversationHandler.END
         drafts[update.effective_user.id] = {"group_id": gid}
-        await msg.reply_text("💗 ကိုယ့်ကို ဘယ်နာမည်လေးနဲ့ မိတ်ဆက်မလဲ?")
-        return NAME
+        await msg.reply_text("💌 လူတောင်းပွဲမှာ ပါဝင်ဖို့ အသက် ၁၈ နှစ် ပြည့်ပြီးပြီလား?", reply_markup=K([[B("💗 ပြည့်ပြီးပါပြီ", callback_data="age_confirm:yes")], [B("🌷 မပြည့်သေးပါဘူး", callback_data="age_confirm:no")]]))
+        return CONFIRM_AGE
     await msg.reply_text("💘 လူတောင်းပွဲက ကြိုဆိုပါတယ်။ Group ထဲက /register ကိုနှိပ်ပြီး ကိုယ့် Profile လေး စလုပ်နိုင်ပါတယ်။")
     return ConversationHandler.END
 
@@ -48,13 +48,27 @@ async def register(update, context):
     url = f"https://t.me/{me.username}?start=join_{update.effective_chat.id}"
     await update.message.reply_text("💌 ကိုယ့်အကြောင်းလေး မိတ်ဆက်ဖို့ အောက်ကနေ ဝင်ခဲ့နော်။", reply_markup=K([[B("💗 Profile လေး ဖန်တီးမယ်", url=url)]]))
 
+async def confirm_age(update, context):
+    q = update.callback_query
+    await q.answer()
+    if q.data == "age_confirm:no":
+        drafts.pop(q.from_user.id, None)
+        await q.edit_message_text("🌷 အသက် ၁၈ နှစ်ပြည့်မှ လူတောင်းပွဲမှာ ပါဝင်လို့ရမယ်နော်။")
+        return ConversationHandler.END
+    if q.from_user.id not in drafts:
+        await q.edit_message_text("💌 Group ထဲက /register နဲ့ ပြန်စလိုက်နော်။")
+        return ConversationHandler.END
+    drafts[q.from_user.id]["adult_confirmed"] = True
+    await q.edit_message_text("💗 ကိုယ့်ကို ဘယ်နာမည်လေးနဲ့ မိတ်ဆက်မလဲ?")
+    return NAME
+
 async def name_step(update, context):
     value = update.message.text.strip()
     if not 1 <= len(value) <= 60:
         await update.message.reply_text("နာမည်လေးကို စာလုံး ၆၀ အောက်နဲ့ ရေးပေးနော်။")
         return NAME
     drafts[update.effective_user.id]["name"] = value
-    await update.message.reply_text("အသက်လေး ဘယ်နှနှစ်ရှိပြီလဲ? (13–17)")
+    await update.message.reply_text("အသက်လေး ဘယ်နှနှစ်ရှိပြီလဲ?")
     return AGE
 
 async def age_step(update, context):
@@ -62,8 +76,8 @@ async def age_step(update, context):
         age = int(update.message.text.strip())
     except ValueError:
         age = 0
-    if not 13 <= age <= 17:
-        await update.message.reply_text("ဒီလူတောင်းပွဲမှာ အသက် ၁၃–၁၇ နှစ်အတွင်းပဲ ပါဝင်နိုင်ပါတယ်နော်။")
+    if not 18 <= age <= 120:
+        await update.message.reply_text("အသက် ၁၈ နှစ်ပြည့်ပြီးသူတွေအတွက်ပဲ ဖွင့်ထားတာနော်။ အသက်ကို ပြန်စစ်ပေးပါဦး 💗")
         return AGE
     drafts[update.effective_user.id]["age"] = age
     await update.message.reply_text("📸 ဓာတ်ပုံတစ်ပုံ ဒါမှမဟုတ် Video တိုလေးတစ်ခု ပို့ပေးပါ။")
@@ -88,6 +102,9 @@ async def bio_step(update, context):
         return ConversationHandler.END
     if not await member(context.bot, d["group_id"], update.effective_user.id):
         await update.message.reply_text("Group ထဲမှာ မရှိတော့လို့ Profile မသိမ်းထားဘူးနော်။")
+        return ConversationHandler.END
+    if not d.get("adult_confirmed") or d.get("age", 0) < 18:
+        await update.message.reply_text("💌 /register နဲ့ ပြန်စလိုက်နော်။")
         return ConversationHandler.END
     bio = "" if update.message.text == "/skip" else update.message.text[:300]
     await db.upsert_profile(update.effective_user.id, d["group_id"], d["name"], d["age"], d["media_type"], d["file_id"], bio)
@@ -171,6 +188,7 @@ def handlers():
     registration = ConversationHandler(
         entry_points=[CommandHandler("start", start, filters.ChatType.PRIVATE)],
         states={
+            CONFIRM_AGE: [CallbackQueryHandler(confirm_age, pattern=r"^age_confirm:(yes|no)$")],
             NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, name_step)],
             AGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, age_step)],
             MEDIA: [MessageHandler(filters.PHOTO | filters.VIDEO, media_step)],
