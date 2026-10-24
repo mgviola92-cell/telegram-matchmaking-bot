@@ -299,3 +299,23 @@ async def save_rejection_reason(request_id,recipient_id,reason):
             WHERE id=$1 AND recipient_id=$2 AND status='rejected'
               AND rejection_reason IS NULL AND decided_at>now()-interval '24 hours'
             RETURNING sender_id""",request_id,recipient_id,reason)
+
+async def remember_request_group_message(request_id,recipient_id,kind,message_id):
+    """Record only messages posted by our bot for this recipient's request."""
+    if kind not in ("card","prompt"):
+        raise ValueError("Invalid request message kind")
+    column = "group_card_message_id" if kind == "card" else "group_prompt_message_id"
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetchrow(
+            f"""UPDATE requests SET {column}=$3
+                WHERE id=$1 AND recipient_id=$2 AND status='pending'
+                AND expires_at>now() RETURNING id""",
+            request_id,recipient_id,message_id)
+
+async def get_request_group_messages(request_id,recipient_id):
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetchrow("""SELECT id, recipient_group_id,
+                group_card_message_id,group_prompt_message_id
+            FROM requests WHERE id=$1 AND recipient_id=$2""",request_id,recipient_id)
