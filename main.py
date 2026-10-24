@@ -8,6 +8,9 @@ from handlers import handlers
 from db import init_schema, close as close_db
 
 logging.basicConfig(level=logging.INFO)
+# HTTP client request logs may include Telegram bot credentials in URL paths.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 TOKEN = os.getenv("BOT_TOKEN", "")
 SECRET = os.getenv("WEBHOOK_SECRET", "")
 BASE_URL = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
