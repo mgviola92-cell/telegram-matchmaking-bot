@@ -55,3 +55,14 @@ CREATE TABLE IF NOT EXISTS browse_sessions (
  CONSTRAINT browse_position_nonnegative CHECK (position>=0)
 );
 CREATE INDEX IF NOT EXISTS browse_sessions_activity ON browse_sessions(updated_at);
+
+-- Small per-viewer seen marker, never media bytes.
+CREATE TABLE IF NOT EXISTS viewed_profiles (
+ viewer_id BIGINT NOT NULL,
+ viewer_group_id BIGINT NOT NULL,
+ target_id BIGINT NOT NULL,
+ target_group_id BIGINT NOT NULL,
+ last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ PRIMARY KEY(viewer_id,viewer_group_id,target_id,target_group_id)
+);
+CREATE INDEX IF NOT EXISTS viewed_profiles_viewer ON viewed_profiles(viewer_id,viewer_group_id);
