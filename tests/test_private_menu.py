@@ -55,6 +55,18 @@ class PrivateMenuTests(unittest.IsolatedAsyncioTestCase):
         q.edit_message_text.assert_awaited_once()
         msg.reply_text.assert_not_awaited()
 
+    async def test_withdraw_confirmation_reuses_inline_card(self):
+        msg = SimpleNamespace(chat=SimpleNamespace(type="private",send_message=AsyncMock()),
+                              photo=[],video=None,reply_text=AsyncMock(),delete=AsyncMock())
+        q = SimpleNamespace(data="withdraw_ask:901",message=msg,
+                            from_user=SimpleNamespace(id=17),answer=AsyncMock(),
+                            edit_message_text=AsyncMock())
+        with patch.object(handlers.db,"outgoing_requests",AsyncMock(return_value=[{"id":901}])):
+            await handlers.withdraw_ask(SimpleNamespace(callback_query=q),SimpleNamespace())
+        q.edit_message_text.assert_awaited_once()
+        self.assertIn("withdraw_do:901",str(q.edit_message_text.await_args))
+        msg.reply_text.assert_not_awaited()
+
     async def test_private_start_sends_menu(self):
         msg = SimpleNamespace(reply_text=AsyncMock())
         u = SimpleNamespace(effective_message=msg,
