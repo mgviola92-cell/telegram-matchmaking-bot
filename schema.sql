@@ -28,3 +28,14 @@ CREATE INDEX IF NOT EXISTS request_sender_target ON requests(sender_id,recipient
 -- Upgrade earlier development databases that used the 13–17 check.
 ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_age_check;
 ALTER TABLE profiles ADD CONSTRAINT profiles_age_check CHECK (age BETWEEN 18 AND 120) NOT VALID;
+
+-- Group administrators control these features without recurring polling.
+CREATE TABLE IF NOT EXISTS group_settings (
+ group_id BIGINT PRIMARY KEY,
+ matchmaking BOOLEAN NOT NULL DEFAULT TRUE,
+ registration BOOLEAN NOT NULL DEFAULT TRUE,
+ requests BOOLEAN NOT NULL DEFAULT TRUE,
+ public_browse BOOLEAN NOT NULL DEFAULT TRUE,
+ intros BOOLEAN NOT NULL DEFAULT TRUE,
+ cleanup BOOLEAN NOT NULL DEFAULT TRUE
+);
