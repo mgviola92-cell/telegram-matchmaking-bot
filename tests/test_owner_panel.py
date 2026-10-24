@@ -56,5 +56,5 @@ class OwnerPanelTests(unittest.IsolatedAsyncioTestCase):
     def test_request_card_heading_is_concise(self):
         caption = handlers.request_card_title({"display_name":"Alice"},
             {"display_name":"Bob"},123)
-        self.assertEqual(caption.count("\\n"),1)
+        self.assertEqual(len(caption.splitlines()),1)
         self.assertIn("Alice → Bob",caption)
