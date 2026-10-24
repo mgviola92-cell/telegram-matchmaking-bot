@@ -18,7 +18,7 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 - Age confirmation is part of registration, not a repeated question at every request.
 
 ## Discovery — agreed, mostly pending
-- One active `/match` card per viewer per group. Buttons usable by its owner only.
+- One active `/match` card per viewer per group. Buttons usable by its owner only. Navigation, per-group session storage and Public switch are now coded; inactivity disables only **on interaction**, not automatically at five minutes (pending).
 - Prev/Next edit the same card, unseen-first shuffled order, 5-minute inactivity timeout, timer reset on interaction, persisted across restarts.
 - Group Only default. Public Browse toggle adds profiles voluntarily made public, including from the current group.
 - One public profile per person across all groups; switching public profile demotes the former.
@@ -29,7 +29,7 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 - Recipient responds privately; accept/reject restricted to recipient.
 - Acceptance congratulates both groups (once if same group), then sends mutual Telegram contact links privately.
 - Rejection may include optional reason, only published with recipient's consent.
-- Pending expires after 24h. Reject cooldown 12h; accept cooldown 24h. Unlimited distinct recipients; no duplicate active request to same recipient.
+- Pending expires after 24h. Reject cooldown 12h; accept cooldown 24h. Decision-time cooldown queries are now coded, but integration tests pending. Unlimited distinct recipients; no duplicate active request to same recipient.
 - Unified private incoming inbox newest first; outgoing list and withdraw with confirmation. Atomic/idempotent transitions.
 
 ## Profile and group management — agreed, pending
@@ -48,5 +48,5 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 - Registration and self-declaration: partial, in-memory conversation draft.
 - One-card match browse and request delivery: basic prototype, **not** full navigation. Private reply, accept/reject, inbox, outgoing, and confirmed withdrawal handlers are now present, but runtime integration remains unverified.
 - Dynamic responses: four families connected; all other bot copy pending.
-- PostgreSQL schema, small lazy pool, webhook: present.
+- PostgreSQL schema (including durable browse sessions), small lazy pool, webhook: present. See `DATABASE_SETUP.md`; no separate bot database was provisioned yet.
 - Offline source/response regression tests and GitHub Actions checks were added; their passing status is **not verified**. Runtime integration tests and Render deployment: **not yet verified**.
