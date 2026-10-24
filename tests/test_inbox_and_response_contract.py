@@ -16,11 +16,17 @@ class SourceChecks(unittest.TestCase):
         import sys
         sys.path.insert(0, str(ROOT))
         from responses import OPENINGS, ENDINGS, say, variants_count
-        for event in ("welcome", "register_invite", "no_matches", "request_sent", "inbox_empty", "outgoing_empty", "request_rejected", "profile_saved"):
+        for event in ("welcome", "register_invite", "no_matches", "request_sent", "inbox_empty", "outgoing_empty", "request_rejected", "profile_saved", "profile_updated", "profile_deleted", "request_withdrawn", "intro_published", "request_accepted", "match_in_progress"):
             self.assertGreaterEqual(variants_count(event), 100)
             self.assertEqual(len(OPENINGS[event]), len(ENDINGS[event]))
             seen = [say(event, user_id=994441) for _ in range(24)]
             self.assertEqual(len(seen), len(set(seen)))
+
+    def test_contextual_response_hooks(self):
+        source = (ROOT / "handlers.py").read_text(encoding="utf-8")
+        for event in ("profile_updated", "profile_deleted", "request_withdrawn",
+                      "intro_published", "request_accepted", "match_in_progress"):
+            self.assertIn('say("'+event+'"', source)
 
     def test_request_flow_requires_confirmation(self):
         source = (ROOT / "handlers.py").read_text(encoding="utf-8")
