@@ -280,17 +280,17 @@ async def browse_callback(update, context):
     if not keys:
         await q.answer("လှည့်ကြည့်ဖို့ Profile မရှိတော့ဘူးနော်။", show_alert=True)
         return
+    key = keys[session["position"]]
+    p = await db.get_profile(key[0],key[1])
+    if not p:
+        await q.answer("ဒီ Profile လေး မရှိတော့ဘူးနော်။", show_alert=True)
+        return
     if delta > 0 and session["position"] == len(keys)-1:
         await q.answer("💗 နောက်ဆုံးကတ်လေးအထိ ရောက်နေပြီနော်။")
     elif delta < 0 and session["position"] == 0:
         await q.answer("🌷 ပထမဆုံးကတ်လေးအထိ ရောက်နေပြီနော်။")
     else:
         await q.answer()
-    key = keys[session["position"]]
-    p = await db.get_profile(key[0],key[1])
-    if not p:
-        await q.answer("ဒီ Profile လေး မရှိတော့ဘူးနော်။", show_alert=True)
-        return
     schedule_browse_timeout(context.bot,uid,gid,q.message.message_id)
     try:
         await edit_browse_card(q,uid,gid,p,session["position"],len(keys),session["public_mode"])
