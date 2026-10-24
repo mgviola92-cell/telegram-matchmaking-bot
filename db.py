@@ -1,16 +1,20 @@
 """Small, lazy PostgreSQL connection pool. No periodic DB polling."""
 import os
+import asyncio
 import asyncpg
 
 _pool = None
+_pool_lock = asyncio.Lock()
 
 async def pool():
     global _pool
     if _pool is None:
-        url = os.getenv("DATABASE_URL")
-        if not url:
-            raise RuntimeError("DATABASE_URL is not configured")
-        _pool = await asyncpg.create_pool(dsn=url, min_size=0, max_size=3, max_inactive_connection_lifetime=30, command_timeout=10)
+        async with _pool_lock:
+            if _pool is None:
+                url = os.getenv("DATABASE_URL")
+                if not url:
+                    raise RuntimeError("DATABASE_URL is not configured")
+                _pool = await asyncpg.create_pool(dsn=url, min_size=0, max_size=3, max_inactive_connection_lifetime=30, command_timeout=10)
     return _pool
 
 async def close():
