@@ -32,6 +32,14 @@ async def archive_profile(user_id, group_id):
     async with p.acquire() as c:
         await c.execute("UPDATE profiles SET archived=true,is_public=false WHERE user_id=$1 AND group_id=$2",user_id,group_id)
 
+async def restore_profile(user_id, group_id):
+    """Only a stored, previously archived card can be restored."""
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetchrow("""UPDATE profiles SET archived=false
+            WHERE user_id=$1 AND group_id=$2 AND archived
+            RETURNING user_id,group_id""", user_id,group_id)
+
 async def browse_profiles(viewer_id, group_id, public=False, limit=50):
     p = await pool()
     async with p.acquire() as c:
