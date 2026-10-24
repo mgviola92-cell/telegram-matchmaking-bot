@@ -6,7 +6,7 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 ## Product identity
 - Telegram Bot API only; works in groups and private chat. No Mini App.
 - Natural, witty Burmese matchmaking voice; context-appropriate responses and button labels, never robotic.
-- Dynamic response target: **100–300+ genuinely suitable variations per event**. The current `responses.py` has four event families, each with 144 **combinations**, not 144 individually authored lines. This is a partial implementation. Anti-repeat is currently in-memory and resets on restart.
+- Dynamic response target: **100–300+ genuinely suitable variations per event**. The current `responses.py` has fourteen event families, each with 144 **combinations**, not 144 individually authored lines. This is an expanded but still partial implementation. Anti-repeat is currently in-memory and resets on restart.
 - No AI API needed for bot responses.
 
 ## Registration
@@ -47,6 +47,6 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 ## Current verified implementation snapshot
 - Registration and self-declaration: partial, in-memory conversation draft.
 - One-card match browse and request delivery: basic prototype, **not** full navigation. Private reply, accept/reject, inbox, outgoing, and confirmed withdrawal handlers are now present, but runtime integration remains unverified.
-- Dynamic responses: eight families (144 combinations each) are coded, including inbox/outgoing empty, rejection, profile save; other state copy still requires expansion.
+- Dynamic responses: fourteen families (144 combinations each) are coded; handlers for saved/updated/deleted profiles, accepted/rejected/withdrawn requests, intro publish, active browse session and other core events use them. Remaining edge-case validation/error messages are fixed copy.
 - PostgreSQL schema (including durable browse sessions), small lazy pool, webhook: present. See `DATABASE_SETUP.md`; a dedicated Neon project and five tables have been created; the matchmaking Render service is connected and latest deployments have been live, but real user E2E verification is pending.
 - Offline source/response regression tests and Docker build gates are present. Some Render builds have passed and deployed live; no complete Telegram end-to-end acceptance test has been confirmed.
