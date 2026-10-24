@@ -35,9 +35,14 @@ async def archive_profile(user_id, group_id):
 async def browse_profiles(viewer_id, group_id, public=False, limit=50):
     p = await pool()
     async with p.acquire() as c:
-        return await c.fetch("""SELECT user_id,group_id,display_name,age,bio,media_type,media_file_id
-            FROM profiles WHERE NOT archived AND age>=18 AND user_id<>$1 AND (group_id=$2 OR ($3 AND is_public))
-            ORDER BY random() LIMIT $4""",viewer_id,group_id,public,limit)
+        return await c.fetch("""SELECT p.user_id,p.group_id,p.display_name,p.age,p.bio,p.media_type,p.media_file_id
+            FROM profiles p
+            LEFT JOIN viewed_profiles v ON
+                v.viewer_id=$1 AND v.viewer_group_id=$2
+                AND v.target_id=p.user_id AND v.target_group_id=p.group_id
+            WHERE NOT p.archived AND p.age>=18 AND p.user_id<>$1
+                AND (p.group_id=$2 OR ($3 AND p.is_public))
+            ORDER BY (v.target_id IS NOT NULL), random() LIMIT $4""",viewer_id,group_id,public,limit)
 
 async def send_request(sender_id, sender_group_id, recipient_id, recipient_group_id):
     if sender_id == recipient_id:
@@ -243,3 +248,13 @@ async def touch_browse_session(user_id,group_id,message_id):
             WHERE viewer_id=$1 AND group_id=$2 AND message_id=$3
             AND updated_at>now()-interval '5 minutes' RETURNING *""",
             user_id,group_id,message_id)
+
+async def mark_profile_viewed(viewer_id,viewer_group_id,target_id,target_group_id):
+    """One write when a profile is actually shown; no background polling."""
+    p = await pool()
+    async with p.acquire() as c:
+        await c.execute("""INSERT INTO viewed_profiles(viewer_id,viewer_group_id,target_id,target_group_id)
+            VALUES($1,$2,$3,$4)
+            ON CONFLICT(viewer_id,viewer_group_id,target_id,target_group_id)
+            DO UPDATE SET last_seen_at=now()""",
+            viewer_id,viewer_group_id,target_id,target_group_id)
