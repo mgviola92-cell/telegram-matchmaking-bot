@@ -88,6 +88,18 @@ def private_menu():
         [B("🌷 စတင်အသုံးပြုပုံ", callback_data="home:help")],
     ])
 
+async def show_menu_page(q, text, keyboard):
+    """Replace one inline page, not a new chat bubble."""
+    if q.message.photo or q.message.video:
+        await q.message.delete()
+        await q.message.chat.send_message(text, reply_markup=keyboard)
+    else:
+        try:
+            await q.edit_message_text(text, reply_markup=keyboard)
+        except TelegramError as exc:
+            if "message is not modified" not in str(exc).lower():
+                raise
+
 async def home_callback(update, context):
     q = update.callback_query
     if q.message.chat.type != "private":
@@ -98,19 +110,19 @@ async def home_callback(update, context):
     if action == "profile":
         rows = await db.user_profiles(q.from_user.id)
         if not rows:
-            await q.message.reply_text(
-                "🌷 မိတ်ဆက်ကတ်လေး မရှိသေးဘူးနော်။ Group ထဲမှာ /register ရေးပြီး ဖွင့်လို့ရတယ်။",
-                reply_markup=K([[B("💗 ပင်မစာမျက်နှာ", callback_data="home:main")]]))
+            await show_menu_page(q,
+                "🌷 မိတ်ဆက်ကတ် မရှိသေးဘူးနော်။ Group ထဲမှာ /register နဲ့ စတင်နိုင်တယ်။",
+                K([[B("💗 ပင်မစာမျက်နှာ",callback_data="home:main")]]))
             return
         buttons = [[B(("🌍 " if p["is_public"] else "💗 ") + p["display_name"][:25],
                       callback_data=f"profile_view:{p['group_id']}")] for p in rows]
         buttons.append([B("💗 ပင်မစာမျက်နှာ", callback_data="home:main")])
-        await q.message.reply_text("🎀 ကိုယ့်မိတ်ဆက်ကတ်လေး ရွေးကြည့်မယ်နော်။",reply_markup=K(buttons))
+        await show_menu_page(q,"🎀 ကိုယ့်မိတ်ဆက်ကတ်လေး ရွေးကြည့်မယ်နော်။",K(buttons))
     elif action == "inbox":
         rows = await db.incoming_requests(q.from_user.id)
         if not rows:
-            await q.message.reply_text(say("inbox_empty",q.from_user.id),
-                                       reply_markup=private_menu())
+            await show_menu_page(q,say("inbox_empty",q.from_user.id),
+                                 K([[B("💗 ပင်မစာမျက်နှာ",callback_data="home:main")]]))
             return
         buttons = []
         for item in rows[:30]:
@@ -119,13 +131,12 @@ async def home_callback(update, context):
                 buttons.append([B("💌 "+sender["display_name"][:25],
                                   callback_data=f"inbox_open:{item['id']}")])
         buttons.append([B("💗 ပင်မစာမျက်နှာ",callback_data="home:main")])
-        await q.message.reply_text("💌 ရောက်လာတဲ့စာတွေထဲက ဖွင့်ကြည့်ချင်တာ ရွေးနော်။",
-                                   reply_markup=K(buttons))
+        await show_menu_page(q,"💌 ရောက်လာတဲ့စာတွေထဲက ဖွင့်ကြည့်ချင်တာ ရွေးနော်။",K(buttons))
     elif action == "outgoing":
         rows = await db.outgoing_requests(q.from_user.id)
         if not rows:
-            await q.message.reply_text(say("outgoing_empty",q.from_user.id),
-                                       reply_markup=private_menu())
+            await show_menu_page(q,say("outgoing_empty",q.from_user.id),
+                                 K([[B("💗 ပင်မစာမျက်နှာ",callback_data="home:main")]]))
             return
         buttons = []
         for item in rows[:30]:
@@ -134,16 +145,15 @@ async def home_callback(update, context):
                 buttons.append([B("📮 "+target["display_name"][:25]+" · ပြန်ရုပ်သိမ်းမယ်",
                                   callback_data=f"withdraw_ask:{item['id']}")])
         buttons.append([B("💗 ပင်မစာမျက်နှာ",callback_data="home:main")])
-        await q.message.reply_text("📮 ကိုယ်ပို့ထားတဲ့ စာလေးတွေကို ဒီမှာ စီမံနိုင်တယ်။",
-                                   reply_markup=K(buttons))
+        await show_menu_page(q,"📮 ကိုယ်ပို့ထားတဲ့ စာလေးတွေကို ဒီမှာ စီမံနိုင်တယ်။",K(buttons))
     elif action == "help":
-        await q.message.reply_text(
+        await show_menu_page(q,
             "🌷 Group ထဲမှာ /register နဲ့ စာရင်းသွင်းနိုင်တယ်။\n"
             "🎀 စာရင်းသွင်းပြီးရင် /profile နဲ့ ကတ်လေးကို စီမံနိုင်တယ်။\n"
             "💌 Group ထဲမှာ /match နဲ့ ကတ်လေးတွေ ကြည့်နိုင်တယ်။",
-            reply_markup=K([[B("💗 ပင်မစာမျက်နှာ",callback_data="home:main")]]))
+            K([[B("💗 ပင်မစာမျက်နှာ",callback_data="home:main")]]))
     elif action == "main":
-        await q.message.reply_text(say("welcome",q.from_user.id),reply_markup=private_menu())
+        await show_menu_page(q,say("welcome",q.from_user.id),private_menu())
 
 async def start(update, context):
     msg = update.effective_message
@@ -771,6 +781,12 @@ async def profile_view(update, context):
         return
     await q.answer()
     actions = profile_actions(group_id, bool(p["is_public"]))
+    # Telegram cannot turn a text message into a photo/video by editing it.
+    # Delete the old inline list before sending a media profile card.
+    try:
+        await q.message.delete()
+    except TelegramError:
+        logging.info("Previous profile picker could not be deleted")
     await show_profile(context.bot, q.from_user.id, p, actions)
 
 async def profile_public(update, context):
