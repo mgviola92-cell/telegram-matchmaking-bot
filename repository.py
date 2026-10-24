@@ -139,3 +139,50 @@ async def set_group_setting(group_id, name, enabled):
             f"""INSERT INTO group_settings(group_id,{name}) VALUES($1,$2)
                 ON CONFLICT(group_id) DO UPDATE SET {name}=excluded.{name} RETURNING *""",
             group_id, enabled)
+
+async def save_browse_session(user_id, group_id, message_id, public_mode, keys, position=0):
+    """Replace browsing cursor with compact ID pairs, never photos or captions."""
+    import json
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetchrow("""INSERT INTO browse_sessions
+            (viewer_id,group_id,message_id,public_mode,profile_keys,position,updated_at)
+            VALUES($1,$2,$3,$4,$5::jsonb,$6,now())
+            ON CONFLICT(viewer_id,group_id) DO UPDATE SET
+            message_id=excluded.message_id,public_mode=excluded.public_mode,
+            profile_keys=excluded.profile_keys,position=excluded.position,updated_at=now()
+            RETURNING *""", user_id,group_id,message_id,public_mode,json.dumps(keys),position)
+
+async def get_browse_session(user_id, group_id):
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetchrow("""SELECT * FROM browse_sessions
+            WHERE viewer_id=$1 AND group_id=$2""",user_id,group_id)
+
+async def advance_browse_session(user_id, group_id, message_id, delta):
+    """Move one step if the session is active; old cards cannot control a new one."""
+    p = await pool()
+    async with p.acquire() as c:
+        async with c.transaction():
+            row = await c.fetchrow("""SELECT * FROM browse_sessions
+                WHERE viewer_id=$1 AND group_id=$2 FOR UPDATE""",user_id,group_id)
+            if not row or row["message_id"]!=message_id:
+                return None
+            if (datetime.now(timezone.utc)-row["updated_at"]).total_seconds()>300:
+                return None
+            pos = row["position"]+delta
+            if pos<0 or pos>=len(row["profile_keys"]):
+                return row
+            return await c.fetchrow("""UPDATE browse_sessions
+                SET position=$3,updated_at=now() WHERE viewer_id=$1 AND group_id=$2
+                RETURNING *""",user_id,group_id,pos)
+
+async def active_browse_session(user_id, group_id):
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetchrow("""SELECT * FROM browse_sessions
+            WHERE viewer_id=$1 AND group_id=$2
+            AND updated_at>now()-interval '5 minutes'""",user_id,group_id)
+
+async def profile_at(user_id, group_id):
+    return await get_profile(user_id,group_id)
