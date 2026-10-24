@@ -243,6 +243,7 @@ async def match(update, context):
     sent = await show_profile(context.bot, gid, p, match_buttons(uid,gid,p,0,len(results),False))
     keys = [[row["user_id"],row["group_id"]] for row in results]
     await db.save_browse_session(uid,gid,sent.message_id,False,keys)
+    await db.mark_profile_viewed(uid,gid,p['user_id'],p['group_id'])
     schedule_browse_timeout(context.bot,uid,gid,sent.message_id)
 
 
@@ -302,6 +303,7 @@ async def browse_callback(update, context):
     schedule_browse_timeout(context.bot,uid,gid,q.message.message_id)
     try:
         await edit_browse_card(q,uid,gid,p,session["position"],len(keys),session["public_mode"])
+        await db.mark_profile_viewed(uid,gid,p["user_id"],p["group_id"])
     except TelegramError:
         logging.exception("Failed to edit browse card")
 
@@ -335,6 +337,7 @@ async def browse_mode_callback(update, context):
     await q.answer("🌍 Public Browse" if public else "🏡 Group Only")
     try:
         await edit_browse_card(q,uid,gid,results[0],0,len(results),public)
+        await db.mark_profile_viewed(uid,gid,results[0]["user_id"],results[0]["group_id"])
     except TelegramError:
         logging.exception("Failed to switch browse mode")
 
