@@ -79,3 +79,10 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS adult_self_confirmed BOOLEAN NOT N
 -- IDs are message references only; no profile media is stored.
 ALTER TABLE requests ADD COLUMN IF NOT EXISTS group_card_message_id BIGINT;
 ALTER TABLE requests ADD COLUMN IF NOT EXISTS group_prompt_message_id BIGINT;
+
+-- Owner-selected QA group is configured once through the bot's private panel.
+CREATE TABLE IF NOT EXISTS owner_qa_settings (
+ owner_id BIGINT PRIMARY KEY,
+ test_group_id BIGINT NOT NULL,
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
