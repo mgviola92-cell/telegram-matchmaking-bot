@@ -48,5 +48,5 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 - Registration and self-declaration: partial, in-memory conversation draft.
 - One-card match browse and request delivery: basic prototype, **not** full navigation. Private reply, accept/reject, inbox, outgoing, and confirmed withdrawal handlers are now present, but runtime integration remains unverified.
 - Dynamic responses: four families connected; all other bot copy pending.
-- PostgreSQL schema (including durable browse sessions), small lazy pool, webhook: present. See `DATABASE_SETUP.md`; no separate bot database was provisioned yet.
+- PostgreSQL schema (including durable browse sessions), small lazy pool, webhook: present. See `DATABASE_SETUP.md`; a dedicated Neon project and four tables have been created, but no matchmaking Render service is connected or tested yet.
 - Offline source/response regression tests and GitHub Actions checks were added; their passing status is **not verified**. Runtime integration tests and Render deployment: **not yet verified**.
