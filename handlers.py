@@ -469,7 +469,7 @@ def request_card_title(sender, recipient, request_id, *, recipient_id=None, user
             link = "https://t.me/" + username
             to_name += " (@" + html.escape(username) + ")"
         to_name = f'<a href="{html.escape(link, quote=True)}">{to_name}</a>'
-    return f"💌 <b>{from_name} က {to_name} ကို လူတောင်းထားပြီ!</b> · #{int(request_id)}\n"
+    return f"💌 <b>{from_name} → {to_name}</b> · လူတောင်းစာ #{int(request_id)}\n"
 
 
 async def request_recipient_username(bot, group_id, user_id):
