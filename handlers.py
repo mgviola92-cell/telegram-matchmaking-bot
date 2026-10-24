@@ -248,7 +248,7 @@ async def decide_callback(update, context):
         return
     a = f'<a href="tg://user?id={sender_id}">မိတ်ဆက်ဖိတ်ခေါ်သူ</a>'
     b = f'<a href="tg://user?id={recipient_id}">လက်ခံသူ</a>'
-    announcement = f"💕 <b>လူတောင်းပွဲမှာ ဆုံတွေ့မှုလေးတစ်ခု ဖြစ်သွားပြီ!</b>\\n{a} နဲ့ {b} တို့ မိတ်ဆက်ခွင့်ရသွားပြီနော် 💌"
+    announcement = f"💕 <b>လူတောင်းပွဲမှာ ဆုံတွေ့မှုလေးတစ်ခု ဖြစ်သွားပြီ!</b>\n{a} နဲ့ {b} တို့ မိတ်ဆက်ခွင့်ရသွားပြီနော် 💌"
     for gid in {result["sender_group_id"], result["recipient_group_id"]}:
         try:
             await context.bot.send_message(gid, announcement, parse_mode="HTML")
