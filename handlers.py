@@ -1,4 +1,6 @@
 """Group-specific registration and browsing handlers. No background database polling."""
+import asyncio
+from datetime import datetime, timezone
 import html
 import json
 import logging
@@ -11,6 +13,47 @@ from responses import say
 CONFIRM_AGE, NAME, AGE, MEDIA, BIO = range(5)
 EDIT_TEXT, EDIT_MEDIA = range(5, 7)
 drafts = {}
+_browse_timer_tasks = {}
+
+async def _expire_browse(bot, uid, gid, message_id, delay):
+    try:
+        await asyncio.sleep(max(0, delay))
+        session = await db.get_browse_session(uid,gid)
+        if not session or session['message_id'] != message_id:
+            return
+        elapsed = (datetime.now(timezone.utc)-session['updated_at']).total_seconds()
+        if elapsed < 300:
+            return
+        try:
+            await bot.edit_message_reply_markup(chat_id=gid,message_id=message_id,reply_markup=None)
+        except TelegramError:
+            logging.info('Browse card timeout: markup unavailable')
+    except asyncio.CancelledError:
+        return
+    finally:
+        key = (uid,gid)
+        if _browse_timer_tasks.get(key) is asyncio.current_task():
+            _browse_timer_tasks.pop(key,None)
+
+def schedule_browse_timeout(bot,uid,gid,message_id,seconds=300):
+    key = (uid,gid)
+    old = _browse_timer_tasks.pop(key,None)
+    if old and not old.done():
+        old.cancel()
+    _browse_timer_tasks[key] = asyncio.create_task(_expire_browse(bot,uid,gid,message_id,seconds))
+
+async def restore_browse_timeouts(bot):
+    for item in await db.recent_browse_sessions():
+        seconds = 300 - (datetime.now(timezone.utc)-item['updated_at']).total_seconds()
+        schedule_browse_timeout(bot,item['viewer_id'],item['group_id'],item['message_id'],seconds)
+
+async def shutdown_browse_timeouts():
+    tasks = list(_browse_timer_tasks.values())
+    _browse_timer_tasks.clear()
+    for task in tasks:
+        task.cancel()
+    if tasks:
+        await asyncio.gather(*tasks,return_exceptions=True)
 
 def caption(p):
     return f"💗 <b>{html.escape(p['display_name'])}</b> · {p['age']} နှစ်\n\n{html.escape(p['bio'] or 'စကားလေးတွေ ပြောကြည့်ရအောင် 💌')}"
@@ -192,6 +235,7 @@ async def match(update, context):
     sent = await show_profile(context.bot, gid, p, match_buttons(uid,gid,p,0,len(results),False))
     keys = [[row["user_id"],row["group_id"]] for row in results]
     await db.save_browse_session(uid,gid,sent.message_id,False,keys)
+    schedule_browse_timeout(context.bot,uid,gid,sent.message_id)
 
 
 def match_buttons(uid, gid, p, position, total, public):
@@ -247,6 +291,7 @@ async def browse_callback(update, context):
     if not p:
         await q.answer("ဒီ Profile လေး မရှိတော့ဘူးနော်။", show_alert=True)
         return
+    schedule_browse_timeout(context.bot,uid,gid,q.message.message_id)
     try:
         await edit_browse_card(q,uid,gid,p,session["position"],len(keys),session["public_mode"])
     except TelegramError:
@@ -278,6 +323,7 @@ async def browse_mode_callback(update, context):
         return
     keys = [[r["user_id"],r["group_id"]] for r in results]
     await db.save_browse_session(uid,gid,q.message.message_id,public,keys)
+    schedule_browse_timeout(context.bot,uid,gid,q.message.message_id)
     await q.answer("🌍 Public Browse" if public else "🏡 Group Only")
     try:
         await edit_browse_card(q,uid,gid,results[0],0,len(results),public)
