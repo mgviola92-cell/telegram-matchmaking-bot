@@ -4,6 +4,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
+from handlers import handlers
+from db import init_schema, close as close_db
 
 logging.basicConfig(level=logging.INFO)
 TOKEN = os.getenv("BOT_TOKEN", "")
@@ -20,7 +22,12 @@ async def lifespan(app: FastAPI):
     global telegram_app
     if TOKEN:
         telegram_app = Application.builder().token(TOKEN).build()
-        telegram_app.add_handler(CommandHandler("start", start))
+        for handler in handlers():
+            telegram_app.add_handler(handler)
+        if os.getenv("DATABASE_URL"):
+            await init_schema()
+        else:
+            logging.warning("DATABASE_URL missing: registration and matching unavailable")
         await telegram_app.initialize()
         await telegram_app.start()
         if BASE_URL and SECRET:
@@ -31,6 +38,7 @@ async def lifespan(app: FastAPI):
     if telegram_app:
         await telegram_app.stop()
         await telegram_app.shutdown()
+    await close_db()
 
 app = FastAPI(lifespan=lifespan)
 
