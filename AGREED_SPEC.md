@@ -11,8 +11,8 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 
 ## Registration
 - Group `/register` offers private deep-link registration; membership verified.
-- User self-declares 18+ before continuing. A declaration is not proof of age. An under-18 answer stops registration.
-- Display name, age, exactly one photo or video (max 30 seconds), optional bio. Only Telegram media file_id in database, never media bytes.
+- User self-declares 18+ exactly once during profile creation before continuing. No numeric age question, ID verification or repeat request checks. A declaration is not proof of age. An under-18 answer stops registration.
+- Display name, no precise age question, exactly one photo or video (max 30 seconds), optional bio. Only Telegram media file_id in database, never media bytes.
 - Separate profile per group. Group intro card is voluntary; edits should not duplicate it.
 - Missing profile on `/match` must invite registration with a working button, not simply reject.
 - Age confirmation is part of registration, not a repeated question at every request.
