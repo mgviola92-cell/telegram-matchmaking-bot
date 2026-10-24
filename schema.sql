@@ -45,3 +45,17 @@ ALTER TABLE requests ADD COLUMN IF NOT EXISTS decided_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS request_decision_cooldown
     ON requests(sender_id,recipient_id,decided_at DESC)
     WHERE status IN ('accepted','rejected');
+
+-- Only Telegram IDs and lightweight browsing state; never media binaries.
+CREATE TABLE IF NOT EXISTS browse_sessions (
+ viewer_id BIGINT NOT NULL,
+ group_id BIGINT NOT NULL,
+ message_id BIGINT,
+ public_mode BOOLEAN NOT NULL DEFAULT FALSE,
+ profile_keys JSONB NOT NULL DEFAULT '[]'::jsonb,
+ position INTEGER NOT NULL DEFAULT 0,
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ PRIMARY KEY(viewer_id,group_id),
+ CONSTRAINT browse_position_nonnegative CHECK (position>=0)
+);
+CREATE INDEX IF NOT EXISTS browse_sessions_activity ON browse_sessions(updated_at);
