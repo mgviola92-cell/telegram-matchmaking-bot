@@ -13,6 +13,17 @@ class PrivateMenuTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any("ပို့ထားတဲ့စာ" in n for n in names))
         self.assertTrue(all(button.callback_data for row in keyboard.inline_keyboard for button in row))
 
+    def test_profile_toggle_preserves_management_buttons(self):
+        for is_public in (False, True):
+            menu = handlers.profile_actions(-100123,is_public)
+            callbacks = [b.callback_data for row in menu.inline_keyboard for b in row]
+            self.assertIn("profile_edit:-100123:display_name",callbacks)
+            self.assertIn("profile_edit:-100123:bio",callbacks)
+            self.assertIn("profile_edit:-100123:media",callbacks)
+            self.assertIn("profile_delete_ask:-100123",callbacks)
+            self.assertIn("home:main",callbacks)
+            self.assertIn("profile_public:-100123:"+("0" if is_public else "1"),callbacks)
+
     async def test_private_start_sends_menu(self):
         msg = SimpleNamespace(reply_text=AsyncMock())
         u = SimpleNamespace(effective_message=msg,
