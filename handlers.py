@@ -436,15 +436,11 @@ async def ask_callback(update, context):
     await q.answer()
     await q.message.reply_text("💌 ဒီမိတ်ဆက်ဖိတ်ခေါ်စာလေးကို တကယ်ပို့မလား?",
         reply_markup=K([[B("💕 သေချာပို့မယ်",callback_data=f"ask_confirm:{invoker}:{source_group}:{target_user}:{target_group}")],
-                        [B("🌷 မပို့တော့ဘူး",callback_data="ask_cancel")]]))
+                        [B("🌷 မပို့တော့ဘူး",callback_data=f"ask_cancel:{invoker}:{source_group}:{target_user}:{target_group}")]]))
     return
 
 async def ask_confirm_callback(update, context):
     q = update.callback_query
-    if q.data == "ask_cancel":
-        await q.answer()
-        await q.edit_message_text("🌷 ဖိတ်ခေါ်စာလေး မပို့တော့ဘူးနော်။")
-        return
     try:
         _, invoker, source_group, target_user, target_group = q.data.split(":")
         invoker, source_group, target_user, target_group = map(int,(invoker,source_group,target_user,target_group))
@@ -453,6 +449,10 @@ async def ask_confirm_callback(update, context):
         return
     if q.from_user.id != invoker or q.message.chat.id != source_group:
         await q.answer("ဖိတ်ခေါ်စာပိုင်ရှင်ပဲ အတည်ပြုနိုင်တယ်နော်။",show_alert=True)
+        return
+    if q.data.startswith("ask_cancel:"):
+        await q.answer()
+        await q.edit_message_text("🌷 ဖိတ်ခေါ်စာလေး မပို့တော့ဘူးနော်။")
         return
     session = await db.active_browse_session(invoker,source_group)
     if not session:
@@ -1101,7 +1101,7 @@ def handlers():
             CallbackQueryHandler(browse_callback, pattern=r"^browse:"),
             CallbackQueryHandler(browse_mode_callback, pattern=r"^browse_mode:"),
             CallbackQueryHandler(ask_callback, pattern=r"^ask:"),
-            CallbackQueryHandler(ask_confirm_callback, pattern=r"^ask_(confirm:|cancel$)"), CallbackQueryHandler(reply_callback, pattern=r"^reply:"),
+            CallbackQueryHandler(ask_confirm_callback, pattern=r"^ask_(confirm:|cancel:)"), CallbackQueryHandler(reply_callback, pattern=r"^reply:"),
             CallbackQueryHandler(decide_callback, pattern=r"^decide:"),
             CommandHandler("inbox", inbox), CommandHandler("outgoing", outgoing),
             CommandHandler("profile", profile), CommandHandler("settings", settings),
