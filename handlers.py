@@ -65,7 +65,7 @@ async def shutdown_browse_timeouts():
         await asyncio.gather(*tasks,return_exceptions=True)
 
 def caption(p):
-    return f"💗 <b>{html.escape(p['display_name'])}</b> · {p['age']} နှစ်\n\n{html.escape(p['bio'] or 'စကားလေးတွေ ပြောကြည့်ရအောင် 💌')}"
+    return f"💗 <b>{html.escape(p['display_name'])}</b>\n\n{html.escape(p['bio'] or 'စကားလေးတွေ ပြောကြည့်ရအောင် 💌')}"
 
 async def member(bot, group_id, user_id):
     try:
@@ -153,22 +153,7 @@ async def name_step(update, context):
         await update.message.reply_text("နာမည်လေးကို စာလုံး ၆၀ အောက်နဲ့ ရေးပေးနော်။")
         return NAME
     drafts[update.effective_user.id]["name"] = value
-    await update.message.reply_text("အသက်လေး ဘယ်နှနှစ်ရှိပြီလဲ?")
-    return AGE
-
-async def age_step(update, context):
-    try:
-        age = int(update.message.text.strip())
-    except ValueError:
-        age = 0
-    if not 18 <= age <= 120:
-        await update.message.reply_text("အသက် ၁၈ နှစ်ပြည့်ပြီးသူတွေအတွက်ပဲ ဖွင့်ထားတာနော်။ အသက်ကို ပြန်စစ်ပေးပါဦး 💗")
-        return AGE
-    if not drafts.get(update.effective_user.id, {}).get("adult_confirmed"):
-        await update.message.reply_text("💌 /register နဲ့ ပြန်စလိုက်နော်။")
-        return ConversationHandler.END
-    drafts[update.effective_user.id]["age"] = age
-    await update.message.reply_text("📸 ဓာတ်ပုံတစ်ပုံ ဒါမှမဟုတ် Video တိုလေးတစ်ခု ပို့ပေးပါ။")
+    await update.message.reply_text("📸 ဓာတ်ပုံတစ်ပုံ ဒါမှမဟုတ် စက္ကန့် ၃၀ အောက် Video လေး ပို့ပေးပါ။")
     return MEDIA
 
 async def media_step(update, context):
@@ -195,12 +180,12 @@ async def bio_step(update, context):
         drafts.pop(update.effective_user.id, None)
         await update.message.reply_text("Group ထဲမှာ မရှိတော့လို့ Profile မသိမ်းထားဘူးနော်။")
         return ConversationHandler.END
-    if not d.get("adult_confirmed") or d.get("age", 0) < 18:
+    if not d.get("adult_confirmed"):
         drafts.pop(update.effective_user.id, None)
         await update.message.reply_text("💌 /register နဲ့ ပြန်စလိုက်နော်။")
         return ConversationHandler.END
     bio = "" if update.message.text == "/skip" else update.message.text[:300]
-    await db.upsert_profile(update.effective_user.id, d["group_id"], d["name"], d["age"], d["media_type"], d["file_id"], bio)
+    await db.upsert_profile(update.effective_user.id, d["group_id"], d["name"], d["media_type"], d["file_id"], bio)
     drafts.pop(update.effective_user.id, None)
     gid = d["group_id"]
     intro_enabled = (await db.group_settings(gid))["intros"]
@@ -1023,7 +1008,6 @@ def handlers():
         states={
             CONFIRM_AGE: [CallbackQueryHandler(confirm_age, pattern=r"^age_confirm:(yes|no)$")],
             NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, name_step)],
-            AGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, age_step)],
             MEDIA: [MessageHandler(filters.PHOTO | filters.VIDEO, media_step)],
             BIO: [CommandHandler("skip", bio_step), MessageHandler(filters.TEXT & ~filters.COMMAND, bio_step)],
         },
