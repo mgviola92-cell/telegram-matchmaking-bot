@@ -702,7 +702,7 @@ async def intro_callback(update, context):
         return
     await q.answer()
     try:
-        await show_profile(context.bot,gid,p,K([[B("💌 မိတ်ဆက်ကတ် လှည့်ကြည့်မယ်",
+        await show_profile(context.bot,gid,p,K([[B("💌 မိတ်ဆက်ခွင့် တောင်းမယ်",
             callback_data=f"intro_view:{q.from_user.id}:{gid}")]]))
     except TelegramError:
         logging.exception("Failed to publish voluntary introduction")
@@ -711,8 +711,48 @@ async def intro_callback(update, context):
     await q.edit_message_text("🎀 Group မှာ မိတ်ဆက်ကတ်လေး တင်ပြီးပြီနော်။")
 
 async def intro_view(update, context):
+    """A visitor can request an introduction from the owner's group card."""
     q = update.callback_query
-    await q.answer("💗 Group ထဲမှာ /match နဲ့ လှည့်ကြည့်နိုင်တယ်နော်။",show_alert=True)
+    try:
+        _, target_text, gid_text = q.data.split(":")
+        target_id, gid = int(target_text), int(gid_text)
+    except (ValueError, AttributeError):
+        await q.answer("မိတ်ဆက်ကတ်လေး အဆင်မပြေတော့ဘူး။",show_alert=True)
+        return
+    sender_id = q.from_user.id
+    if q.message.chat.id != gid or sender_id == target_id:
+        await q.answer("ဒီမိတ်ဆက်ကတ်လေးမှာ တောင်းလို့မရဘူးနော်။",show_alert=True)
+        return
+    settings = await db.group_settings(gid)
+    if not settings["requests"] or not settings["intros"]:
+        await q.answer("ဒီ Group မှာ မိတ်ဆက်ခွင့် တောင်းတာကို ခဏပိတ်ထားတယ်နော်။",show_alert=True)
+        return
+    if not await member(context.bot,gid,sender_id) or not await member(context.bot,gid,target_id):
+        await q.answer("Group ထဲမှာ အဖွဲ့ဝင်ဖြစ်ဖို့ လိုတယ်နော်။",show_alert=True)
+        return
+    source = await db.get_profile(sender_id,gid)
+    target = await db.get_profile(target_id,gid)
+    if not source:
+        me = await context.bot.get_me()
+        url = f"https://t.me/{me.username}?start=join_{gid}"
+        await q.answer("Profile လေး အရင်ဖန်တီးကြမယ်နော်။")
+        await q.message.reply_text(say("register_invite",sender_id),
+            reply_markup=K([[B("💗 Profile လေး ဖန်တီးမယ်",url=url)]]))
+        return
+    if not target:
+        await q.answer("မိတ်ဆက်ကတ်ပိုင်ရှင်ရဲ့ Profile မရှိတော့ဘူးနော်။",show_alert=True)
+        return
+    result = await db.send_request(sender_id,gid,target_id,gid)
+    if not result:
+        await q.answer("ပို့ပြီးသားဖြစ်နိုင်တယ်၊ ဒါမှမဟုတ် ခဏစောင့်ဖို့လိုနေတယ်နော်။",show_alert=True)
+        return
+    await q.answer("💌 မိတ်ဆက်ဖို့ တောင်းဆိုပြီးပြီ")
+    try:
+        await context.bot.send_message(gid,say("request_sent",sender_id))
+        await show_profile(context.bot,gid,source,
+            K([[B("💕 အဖြေပေးမယ်",callback_data=f"reply:{result['id']}:{target_id}")]]))
+    except TelegramError:
+        logging.exception("Intro request persisted but delivery failed")
 
 SETTING_LABELS = {
     "matchmaking": "💗 Matchmaking", "registration": "📝 Registration",
