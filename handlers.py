@@ -145,7 +145,14 @@ async def bio_step(update, context):
     bio = "" if update.message.text == "/skip" else update.message.text[:300]
     await db.upsert_profile(update.effective_user.id, d["group_id"], d["name"], d["age"], d["media_type"], d["file_id"], bio)
     drafts.pop(update.effective_user.id, None)
-    await update.message.reply_text("💖 Profile လေး သိမ်းပြီးပြီ။ Group ထဲမှာ /match နဲ့ စလှည့်ကြည့်လို့ရပြီနော်။")
+    gid = d["group_id"]
+    intro_enabled = (await db.group_settings(gid))["intros"]
+    buttons = K([[B("🎀 Group မှာ မိတ်ဆက်မယ်",callback_data=f"intro_yes:{gid}")],
+                 [B("🌷 မိတ်ဆက်မပို့တော့ဘူး",callback_data="intro_skip")]]) if intro_enabled else None
+    await update.message.reply_text(
+        "💖 Profile လေး သိမ်းပြီးပြီ။ Group မှာ မိတ်ဆက်ကတ်တင်မလား? မတင်လည်း /match သုံးလို့ရတယ်နော်။"
+        if intro_enabled else "💖 Profile လေး သိမ်းပြီးပြီ။ Group ထဲမှာ /match နဲ့ စလှည့်ကြည့်လို့ရပြီနော်။",
+        reply_markup=buttons)
     return ConversationHandler.END
 
 async def cancel(update, context):
@@ -670,6 +677,43 @@ async def profile_delete_do(update, context):
         except TelegramError:
             logging.info("Unable to notify affected requester")
 
+
+async def intro_callback(update, context):
+    """Only the profile owner may voluntarily publish an introduction."""
+    q = update.callback_query
+    if q.message.chat.type != "private":
+        await q.answer("Private မှာပဲ ရွေးပေးနော်။",show_alert=True)
+        return
+    if q.data == "intro_skip":
+        await q.answer()
+        await q.edit_message_text("🌷 မိတ်ဆက်ကတ် မတင်တော့ဘူးနော်။ Group မှာ /match နဲ့ လှည့်ကြည့်လို့ရပြီ။")
+        return
+    try:
+        gid = int(q.data.split(":",1)[1])
+    except (ValueError,AttributeError):
+        await q.answer("ခလုတ်လေး အဆင်မပြေတော့ဘူး။",show_alert=True)
+        return
+    p = await db.get_profile(q.from_user.id,gid)
+    if not p or not await member(context.bot,gid,q.from_user.id):
+        await q.answer("Group ထဲမှာ ကိုယ့် Profile မရှိတော့ဘူးနော်။",show_alert=True)
+        return
+    if not (await db.group_settings(gid))["intros"]:
+        await q.answer("မိတ်ဆက်ကတ်တင်တာကို Group Admin က ပိတ်ထားတယ်နော်။",show_alert=True)
+        return
+    await q.answer()
+    try:
+        await show_profile(context.bot,gid,p,K([[B("💌 မိတ်ဆက်ကတ် လှည့်ကြည့်မယ်",
+            callback_data=f"intro_view:{q.from_user.id}:{gid}")]]))
+    except TelegramError:
+        logging.exception("Failed to publish voluntary introduction")
+        await q.message.reply_text("🌷 Group ထဲကို မိတ်ဆက်ကတ် မပို့နိုင်သေးဘူးနော်။")
+        return
+    await q.edit_message_text("🎀 Group မှာ မိတ်ဆက်ကတ်လေး တင်ပြီးပြီနော်။")
+
+async def intro_view(update, context):
+    q = update.callback_query
+    await q.answer("💗 Group ထဲမှာ /match နဲ့ လှည့်ကြည့်နိုင်တယ်နော်။",show_alert=True)
+
 SETTING_LABELS = {
     "matchmaking": "💗 Matchmaking", "registration": "📝 Registration",
     "requests": "💌 Requests", "public_browse": "🌍 Public Browse",
@@ -753,6 +797,8 @@ def handlers():
             CallbackQueryHandler(profile_public, pattern=r"^profile_public:"),
             CallbackQueryHandler(profile_delete_ask,pattern=r"^profile_delete_ask:"),
             CallbackQueryHandler(profile_delete_do,pattern=r"^profile_delete_(do:|cancel$)"),
+            CallbackQueryHandler(intro_callback,pattern=r"^intro_(yes:|skip$)"),
+            CallbackQueryHandler(intro_view,pattern=r"^intro_view:"),
             CallbackQueryHandler(inbox_open, pattern=r"^inbox_open:"),
             CallbackQueryHandler(withdraw_ask, pattern=r"^withdraw_ask:"),
             CallbackQueryHandler(withdraw_do, pattern=r"^withdraw_(do:|cancel$)")]
