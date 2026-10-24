@@ -97,12 +97,23 @@ class RequestConfirmationTests(unittest.IsolatedAsyncioTestCase):
         bot=SimpleNamespace(get_me=AsyncMock(return_value=SimpleNamespace(username="example_bot")))
         prompt = SimpleNamespace(message_id=88)
         update.callback_query.message.reply_text.return_value=prompt
-        with patch.object(handlers.db,"remember_request_group_message",AsyncMock()) as saved:
+        with patch.object(handlers.db,"remember_request_group_message",AsyncMock()) as saved, \
+             patch.object(handlers.db,"pending_request_for_recipient",AsyncMock(return_value={"id":123})), \
+             patch.object(handlers.db,"get_request_group_messages",AsyncMock(return_value=None)):
             await handlers.reply_callback(update,SimpleNamespace(bot=bot))
         saved.assert_awaited_once_with(123,11,"prompt",88)
         msg=update.callback_query.message
         self.assertEqual(msg.reply_text.await_args.kwargs["reply_to_message_id"],55)
         self.assertIn("reply_123",str(msg.reply_text.await_args))
+
+    async def test_duplicate_group_reply_does_not_create_another_prompt(self):
+        update=fake_update("reply:123:11",user_id=11,message_id=55)
+        bot=SimpleNamespace(get_me=AsyncMock(return_value=SimpleNamespace(username="sample_bot")))
+        refs={"group_prompt_message_id":56}
+        with patch.object(handlers.db,"pending_request_for_recipient",AsyncMock(return_value={"id":123})), \
+             patch.object(handlers.db,"get_request_group_messages",AsyncMock(return_value=refs)):
+            await handlers.reply_callback(update,SimpleNamespace(bot=bot))
+        update.callback_query.message.reply_text.assert_not_awaited()
 
     async def test_group_handoff_disables_card_and_deletes_prompt(self):
         refs={"recipient_group_id":-1007,"group_card_message_id":55,
