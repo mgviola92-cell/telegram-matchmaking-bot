@@ -176,7 +176,8 @@ async def advance_browse_session(user_id, group_id, message_id, delta):
                 keys = json.loads(keys)
             pos = row["position"]+delta
             if pos<0 or pos>=len(keys):
-                return row
+                return await c.fetchrow("""UPDATE browse_sessions SET updated_at=now()
+                    WHERE viewer_id=$1 AND group_id=$2 RETURNING *""",user_id,group_id)
             return await c.fetchrow("""UPDATE browse_sessions
                 SET position=$3,updated_at=now() WHERE viewer_id=$1 AND group_id=$2
                 RETURNING *""",user_id,group_id,pos)
@@ -233,3 +234,12 @@ async def recent_browse_sessions():
         return await c.fetch("""SELECT viewer_id,group_id,message_id,updated_at
             FROM browse_sessions WHERE updated_at>now()-interval '5 minutes'
               AND message_id IS NOT NULL LIMIT 500""")
+
+async def touch_browse_session(user_id,group_id,message_id):
+    """Reset inactivity only if the current card still belongs to this viewer."""
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetchrow("""UPDATE browse_sessions SET updated_at=now()
+            WHERE viewer_id=$1 AND group_id=$2 AND message_id=$3
+            AND updated_at>now()-interval '5 minutes' RETURNING *""",
+            user_id,group_id,message_id)
