@@ -70,6 +70,28 @@ class RequestConfirmationTests(unittest.IsolatedAsyncioTestCase):
             await handlers.intro_confirm_callback(update,ctx)
         send.assert_not_awaited()
 
+    def test_request_caption_names_both_participants(self):
+        text = handlers.request_card_title(
+            {"display_name":"ပို့သူ <one>"},
+            {"display_name":"လက်ခံသူ & two"}, 123)
+        self.assertIn("ပို့သူ &lt;one&gt;",text)
+        self.assertIn("လက်ခံသူ &amp; two",text)
+        self.assertIn("#123",text)
+        self.assertIn("တောင်းဆိုသူ",text)
+        self.assertIn("လက်ခံမယ့်သူ",text)
+
+    async def test_request_media_has_context_and_reply_link(self):
+        bot = SimpleNamespace(send_photo=AsyncMock())
+        p = {"display_name":"Sender","bio":"","media_type":"photo","media_file_id":"file-1"}
+        await handlers.show_profile(bot,-1007,p,None,
+            header=handlers.request_card_title(p,{"display_name":"Target"},77),
+            reply_to_message_id=50)
+        args=bot.send_photo.await_args
+        self.assertEqual(args.kwargs["reply_to_message_id"],50)
+        self.assertIn("Sender",args.kwargs["caption"])
+        self.assertIn("Target",args.kwargs["caption"])
+        self.assertEqual(args.kwargs["parse_mode"],"HTML")
+
     async def test_other_user_cannot_confirm(self):
         update = fake_update("ask_confirm:11:-1007:22:-1007",user_id=99)
         ctx = SimpleNamespace(bot=MagicMock())
