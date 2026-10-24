@@ -227,7 +227,7 @@ async def match(update, context):
         return
     existing = await db.active_browse_session(uid, gid)
     if existing:
-        await update.message.reply_text("💗 မိတ်ဆက်ကတ်လေး ဖွင့်ထားပြီးသားနော်။ အပေါ်က ကတ်လေးမှာ ဆက်လှည့်ကြည့်လိုက်ပါဦး။")
+        await update.message.reply_text(say("match_in_progress",uid))
         return
     results = await db.browse_profiles(uid, gid, public=False, limit=50)
     if not results:
@@ -474,7 +474,7 @@ async def decide_callback(update, context):
         return
     a = f'<a href="tg://user?id={sender_id}">မိတ်ဆက်ဖိတ်ခေါ်သူ</a>'
     b = f'<a href="tg://user?id={recipient_id}">လက်ခံသူ</a>'
-    announcement = f"💕 <b>လူတောင်းပွဲမှာ ဆုံတွေ့မှုလေးတစ်ခု ဖြစ်သွားပြီ!</b>\n{a} နဲ့ {b} တို့ မိတ်ဆက်ခွင့်ရသွားပြီနော် 💌"
+    announcement = f"💕 <b>{html.escape(say('request_accepted',recipient_id))}</b>\n{a} နဲ့ {b} တို့ မိတ်ဆက်ခွင့်ရသွားပြီနော် 💌"
     for gid in {result["sender_group_id"], result["recipient_group_id"]}:
         try:
             await context.bot.send_message(gid, announcement, parse_mode="HTML")
@@ -659,7 +659,7 @@ async def withdraw_do(update, context):
         await q.answer("ဒီစာလေးကို ပြန်ရုပ်သိမ်းလို့ မရတော့ဘူးနော်။", show_alert=True)
         return
     await q.answer("ပြန်ရုပ်သိမ်းပြီးပြီ 💗")
-    await q.edit_message_text("🌷 ဖိတ်ခေါ်စာလေးကို ပြန်ရုပ်သိမ်းပြီးပါပြီ။")
+    await q.edit_message_text(say("request_withdrawn",q.from_user.id))
 
 
 async def profile(update, context):
@@ -777,7 +777,7 @@ async def profile_edit_text(update, context):
             return EDIT_TEXT
     result = await db.update_profile_text(update.effective_user.id, edit["group_id"],field,value)
     context.user_data.pop("profile_edit",None)
-    await update.message.reply_text("💗 Profile လေး ပြင်ပြီးပြီနော်။" if result else "🌷 Profile လေး မရှိတော့ဘူးနော်။")
+    await update.message.reply_text(say("profile_updated",update.effective_user.id) if result else "🌷 Profile လေး မရှိတော့ဘူးနော်။")
     return ConversationHandler.END
 
 async def profile_edit_media(update, context):
@@ -794,7 +794,7 @@ async def profile_edit_media(update, context):
         return EDIT_MEDIA
     result = await db.update_profile_media(update.effective_user.id,edit["group_id"],kind,fid)
     context.user_data.pop("profile_edit",None)
-    await message.reply_text("💗 မိတ်ဆက်ပုံလေး အသစ်ပြောင်းပြီးပြီ။" if result else "🌷 Profile လေး မရှိတော့ဘူးနော်။")
+    await message.reply_text(say("profile_updated",update.effective_user.id) if result else "🌷 Profile လေး မရှိတော့ဘူးနော်။")
     return ConversationHandler.END
 
 async def profile_edit_cancel(update, context):
@@ -839,7 +839,7 @@ async def profile_delete_do(update, context):
         await q.answer("Profile လေး မရှိတော့ဘူးနော်။",show_alert=True)
         return
     await q.answer("Profile ဖျက်ပြီးပြီ")
-    await q.edit_message_text("🌷 ဒီ Group အတွက် Profile ကို ဖျက်ပြီးပါပြီ။")
+    await q.edit_message_text(say("profile_deleted",q.from_user.id))
     for card in result.get("old_cards", []):
         if card["message_id"] is None:
             continue
@@ -890,7 +890,7 @@ async def intro_callback(update, context):
         logging.exception("Failed to publish voluntary introduction")
         await q.message.reply_text("🌷 Group ထဲကို မိတ်ဆက်ကတ် မပို့နိုင်သေးဘူးနော်။")
         return
-    await q.edit_message_text("🎀 Group မှာ မိတ်ဆက်ကတ်လေး တင်ပြီးပြီနော်။")
+    await q.edit_message_text(say("intro_published",q.from_user.id))
 
 async def intro_view(update, context):
     """A visitor can request an introduction from the owner's group card."""
