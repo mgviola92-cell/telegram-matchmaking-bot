@@ -990,17 +990,55 @@ async def intro_view(update, context):
     if not target:
         await q.answer("မိတ်ဆက်ကတ်ပိုင်ရှင်ရဲ့ Profile မရှိတော့ဘူးနော်။",show_alert=True)
         return
+    await q.answer()
+    await q.message.reply_text("💌 ဒီမိတ်ဆက်ကတ်ပိုင်ရှင်ဆီ ဖိတ်ခေါ်စာ တကယ်ပို့မလား?",
+        reply_markup=K([[B("💌 သေချာပို့မယ်",callback_data=f"intro_confirm:{sender_id}:{gid}:{target_id}")],
+                        [B("🌷 မပို့တော့ဘူး",callback_data=f"intro_cancel:{sender_id}:{gid}:{target_id}")]]))
+
+
+async def intro_confirm_callback(update, context):
+    q = update.callback_query
+    try:
+        verb, sender_text, gid_text, target_text = q.data.split(":")
+        sender_id, gid, target_id = map(int,(sender_text,gid_text,target_text))
+    except (ValueError,AttributeError):
+        await q.answer("မိတ်ဆက်ကတ်လေး အဆင်မပြေတော့ဘူး။",show_alert=True)
+        return
+    if q.from_user.id != sender_id or q.message.chat.id != gid:
+        await q.answer("ဖိတ်ခေါ်စာပိုင်ရှင်ပဲ ဆုံးဖြတ်နိုင်တယ်နော်။",show_alert=True)
+        return
+    if verb == "intro_cancel":
+        await q.answer()
+        await q.edit_message_text("🌷 ဒီဖိတ်ခေါ်စာလေး မပို့တော့ဘူးနော်။")
+        return
+    options = await db.group_settings(gid)
+    if not options["requests"] or not options["intros"]:
+        await q.answer("Group မှာ ဖိတ်ခေါ်ခွင့် ခဏပိတ်ထားတယ်နော်။",show_alert=True)
+        return
+    if not await member(context.bot,gid,sender_id) or not await member(context.bot,gid,target_id):
+        await q.answer("Group အဖွဲ့ဝင်အခြေအနေ ပြောင်းသွားပြီနော်။",show_alert=True)
+        return
+    source = await db.get_profile(sender_id,gid)
+    target = await db.get_profile(target_id,gid)
+    if not source or not target:
+        await q.answer("Profile လေး မရှိတော့ဘူးနော်။",show_alert=True)
+        return
     result = await db.send_request(sender_id,gid,target_id,gid)
     if not result:
-        await q.answer("ပို့ပြီးသားဖြစ်နိုင်တယ်၊ ဒါမှမဟုတ် ခဏစောင့်ဖို့လိုနေတယ်နော်။",show_alert=True)
+        await q.answer("ဖိတ်ခေါ်ပြီးသား ဒါမှမဟုတ် ခဏစောင့်ဖို့လိုနေတယ်နော်။",show_alert=True)
         return
-    await q.answer("💌 မိတ်ဆက်ဖို့ တောင်းဆိုပြီးပြီ")
+    await q.answer("💌 ဖိတ်ခေါ်စာ ပို့လိုက်ပြီ")
+    try:
+        await q.edit_message_reply_markup(reply_markup=None)
+    except TelegramError:
+        pass
     try:
         await context.bot.send_message(gid,say("request_sent",sender_id))
         await show_profile(context.bot,gid,source,
             K([[B("💕 အဖြေပေးမယ်",callback_data=f"reply:{result['id']}:{target_id}")]]))
     except TelegramError:
         logging.exception("Intro request persisted but delivery failed")
+
 
 SETTING_LABELS = {
     "matchmaking": "💗 ဆုံတွေ့ခွင့်", "registration": "📝 မိတ်ဆက်ကတ် စာရင်းသွင်းခွင့်",
@@ -1115,6 +1153,7 @@ def handlers():
             CallbackQueryHandler(reason_start,pattern=r"^reason_skip$"),
             CallbackQueryHandler(reason_finish,pattern=r"^reason_(send|cancel)$"),
             CallbackQueryHandler(intro_view,pattern=r"^intro_view:"),
+            CallbackQueryHandler(intro_confirm_callback,pattern=r"^intro_(confirm:|cancel:)"),
             CallbackQueryHandler(inbox_open, pattern=r"^inbox_open:"),
             CallbackQueryHandler(withdraw_ask, pattern=r"^withdraw_ask:"),
             CallbackQueryHandler(withdraw_do, pattern=r"^withdraw_(do:|cancel$)")]
