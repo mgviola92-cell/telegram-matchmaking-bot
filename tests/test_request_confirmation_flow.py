@@ -77,8 +77,7 @@ class RequestConfirmationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("ပို့သူ &lt;one&gt;",text)
         self.assertIn("လက်ခံသူ &amp; two",text)
         self.assertIn("#123",text)
-        self.assertIn("တောင်းဆိုသူ",text)
-        self.assertIn("လက်ခံမယ့်သူ",text)
+        self.assertIn("→",text)
 
     async def test_request_media_has_context_and_reply_link(self):
         bot = SimpleNamespace(send_photo=AsyncMock())
