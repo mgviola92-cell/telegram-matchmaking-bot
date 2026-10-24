@@ -38,6 +38,20 @@ class RequestConfirmationTests(unittest.IsolatedAsyncioTestCase):
         update.callback_query.message.reply_text.assert_awaited_once()
         self.assertIn("ask_confirm:",str(update.callback_query.message.reply_text.await_args))
 
+    async def test_other_user_cannot_cancel(self):
+        update = fake_update("ask_cancel:11:-1007:22:-1007",user_id=99)
+        update.callback_query.edit_message_text=AsyncMock()
+        ctx = SimpleNamespace(bot=MagicMock())
+        await handlers.ask_confirm_callback(update,ctx)
+        update.callback_query.edit_message_text.assert_not_awaited()
+        update.callback_query.answer.assert_awaited_once()
+
+    async def test_owner_can_cancel(self):
+        update = fake_update("ask_cancel:11:-1007:22:-1007",user_id=11)
+        update.callback_query.edit_message_text=AsyncMock()
+        await handlers.ask_confirm_callback(update,SimpleNamespace(bot=MagicMock()))
+        update.callback_query.edit_message_text.assert_awaited_once()
+
     async def test_other_user_cannot_confirm(self):
         update = fake_update("ask_confirm:11:-1007:22:-1007",user_id=99)
         ctx = SimpleNamespace(bot=MagicMock())
