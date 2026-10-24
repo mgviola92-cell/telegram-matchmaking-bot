@@ -205,7 +205,7 @@ async def bio_step(update, context):
                  [B("🌷 မိတ်ဆက်မပို့တော့ဘူး",callback_data="intro_skip")]]) if intro_enabled else None
     await update.message.reply_text(
         "💖 Profile လေး သိမ်းပြီးပြီ။ Group မှာ မိတ်ဆက်ကတ်တင်မလား? မတင်လည်း /match သုံးလို့ရတယ်နော်။"
-        if intro_enabled else "💖 Profile လေး သိမ်းပြီးပြီ။ Group ထဲမှာ /match နဲ့ စလှည့်ကြည့်လို့ရပြီနော်။",
+        if intro_enabled else say("profile_saved",update.effective_user.id),
         reply_markup=buttons)
     return ConversationHandler.END
 
@@ -475,7 +475,7 @@ async def decide_callback(update, context):
     if action == "rejected":
         await q.message.reply_text("🌷 ဒီတစ်ခေါက်တော့ မိတ်ဆက်ခွင့်လေးကို ငြင်းလိုက်ပြီနော်။")
         try:
-            await context.bot.send_message(sender_id, "💌 ပို့ထားတဲ့ မိတ်ဆက်ဖိတ်ခေါ်ချက်လေးကို တစ်ဖက်က လက်မခံခဲ့ဘူးနော်။")
+            await context.bot.send_message(sender_id, say("request_rejected",sender_id))
         except TelegramError:
             logging.info("Sender private chat unavailable for rejection notice")
         return
@@ -504,7 +504,7 @@ async def inbox(update, context):
         return
     items = await db.incoming_requests(update.effective_user.id)
     if not items:
-        await update.message.reply_text("🌷 အခုအချိန်မှာ အဖြေစောင့်နေတဲ့ အချစ်စာလေး မရှိသေးဘူးနော်။")
+        await update.message.reply_text(say("inbox_empty",update.effective_user.id))
         return
     buttons = []
     for row in items[:30]:
@@ -548,7 +548,7 @@ async def outgoing(update, context):
         return
     items = await db.outgoing_requests(update.effective_user.id)
     if not items:
-        await update.message.reply_text("💗 လောလောဆယ် အဖြေစောင့်နေတဲ့ ဖိတ်ခေါ်စာ မရှိသေးဘူးနော်။")
+        await update.message.reply_text(say("outgoing_empty",update.effective_user.id))
         return
     buttons = []
     for row in items[:30]:
