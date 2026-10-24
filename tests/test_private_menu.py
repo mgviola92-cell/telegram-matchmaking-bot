@@ -67,6 +67,32 @@ class PrivateMenuTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("withdraw_do:901",str(q.edit_message_text.await_args))
         msg.reply_text.assert_not_awaited()
 
+    async def test_media_delete_failure_does_not_multiply_cards(self):
+        from telegram.error import BadRequest
+        msg = SimpleNamespace(chat=SimpleNamespace(type="private",send_message=AsyncMock()),
+                              photo=[object()],video=None,
+                              delete=AsyncMock(side_effect=BadRequest("message can't be deleted")),
+                              reply_text=AsyncMock())
+        q = SimpleNamespace(data="home:main",message=msg,
+                            from_user=SimpleNamespace(id=17),answer=AsyncMock(),
+                            edit_message_text=AsyncMock())
+        await handlers.home_callback(SimpleNamespace(callback_query=q),SimpleNamespace())
+        msg.chat.send_message.assert_not_awaited()
+        msg.reply_text.assert_not_awaited()
+
+    async def test_profile_picker_delete_failure_does_not_duplicate_media(self):
+        from telegram.error import BadRequest
+        msg = SimpleNamespace(chat=SimpleNamespace(type="private"),
+                              delete=AsyncMock(side_effect=BadRequest("message can't be deleted")))
+        q = SimpleNamespace(data="profile_view:-1007",message=msg,
+                            from_user=SimpleNamespace(id=17),answer=AsyncMock())
+        bot = SimpleNamespace(send_photo=AsyncMock(),send_video=AsyncMock())
+        profile = {"user_id":17,"group_id":-1007,"is_public":False}
+        with patch.object(handlers.db,"get_profile",AsyncMock(return_value=profile)):
+            await handlers.profile_view(SimpleNamespace(callback_query=q),SimpleNamespace(bot=bot))
+        bot.send_photo.assert_not_awaited()
+        bot.send_video.assert_not_awaited()
+
     async def test_private_start_sends_menu(self):
         msg = SimpleNamespace(reply_text=AsyncMock())
         u = SimpleNamespace(effective_message=msg,
