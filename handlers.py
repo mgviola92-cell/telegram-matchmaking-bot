@@ -5,6 +5,7 @@ from telegram import InlineKeyboardButton as B, InlineKeyboardMarkup as K
 from telegram.error import TelegramError
 from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, filters, ConversationHandler
 import repository as db
+from responses import say
 
 CONFIRM_AGE, NAME, AGE, MEDIA, BIO = range(5)
 drafts = {}
@@ -22,7 +23,7 @@ async def member(bot, group_id, user_id):
 async def start(update, context):
     msg = update.effective_message
     if update.effective_chat.type != "private":
-        await msg.reply_text("💘 လူတောင်းပွဲက ကြိုဆိုပါတယ်။ /match နဲ့ လှည့်ကြည့်နိုင်ပါတယ်။")
+        await msg.reply_text(say("welcome", update.effective_user.id))
         return
     args = context.args
     if args and args[0].startswith("join_"):
@@ -37,7 +38,7 @@ async def start(update, context):
         drafts[update.effective_user.id] = {"group_id": gid}
         await msg.reply_text("💌 လူတောင်းပွဲမှာ ပါဝင်ဖို့ အသက် ၁၈ နှစ် ပြည့်ပြီးပြီလား?", reply_markup=K([[B("💗 ပြည့်ပြီးပါပြီ", callback_data="age_confirm:yes")], [B("🌷 မပြည့်သေးပါဘူး", callback_data="age_confirm:no")]]))
         return CONFIRM_AGE
-    await msg.reply_text("💘 လူတောင်းပွဲက ကြိုဆိုပါတယ်။ Group ထဲက /register ကိုနှိပ်ပြီး ကိုယ့် Profile လေး စလုပ်နိုင်ပါတယ်။")
+    await msg.reply_text(say("welcome", update.effective_user.id))
     return ConversationHandler.END
 
 async def register(update, context):
@@ -46,7 +47,7 @@ async def register(update, context):
         return
     me = await context.bot.get_me()
     url = f"https://t.me/{me.username}?start=join_{update.effective_chat.id}"
-    await update.message.reply_text("💌 ကိုယ့်အကြောင်းလေး မိတ်ဆက်ဖို့ အောက်ကနေ ဝင်ခဲ့နော်။", reply_markup=K([[B("💗 Profile လေး ဖန်တီးမယ်", url=url)]]))
+    await update.message.reply_text(say("register_invite", update.effective_user.id), reply_markup=K([[B("💗 Profile လေး ဖန်တီးမယ်", url=url)]]))
 
 async def confirm_age(update, context):
     q = update.callback_query
@@ -141,11 +142,11 @@ async def match(update, context):
     if not own:
         me = await context.bot.get_me()
         url = f"https://t.me/{me.username}?start=join_{gid}"
-        await update.message.reply_text("💌 လှည့်ကြည့်ဖို့ ကိုယ့် Profile လေး အရင်မိတ်ဆက်ရအောင်နော်။", reply_markup=K([[B("💗 Profile လေး ဖန်တီးမယ်", url=url)]]))
+        await update.message.reply_text(say("register_invite", uid), reply_markup=K([[B("💗 Profile လေး ဖန်တီးမယ်", url=url)]]))
         return
     results = await db.browse_profiles(uid, gid, public=False, limit=50)
     if not results:
-        await update.message.reply_text("💌 ဒီ Group ထဲမှာ လှည့်ကြည့်ဖို့ Profile လေးတွေ မရှိသေးဘူး။")
+        await update.message.reply_text(say("no_matches", uid))
         return
     p = results[0]
     keyboard = K([[B("💌 တောင်းမယ်", callback_data=f"ask:{uid}:{gid}:{p['user_id']}:{p['group_id']}")]])
@@ -176,7 +177,7 @@ async def ask_callback(update, context):
         return
     await q.answer("အချစ်စာလေး ပို့လိုက်ပြီ 💌")
     try:
-        await context.bot.send_message(source_group, "💌 အချစ်စာလေး ပို့ပြီးပြီနော်။")
+        await context.bot.send_message(source_group, say("request_sent", invoker))
         await show_profile(context.bot, target_group, source, K([[B("💌 အဖြေပေးမယ်", callback_data=f"reply:{result['id']}:{target_user}")]]))
     except TelegramError:
         logging.exception("Request group delivery failed; request persisted")
