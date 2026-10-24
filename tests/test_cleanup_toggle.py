@@ -12,7 +12,7 @@ class CleanupToggleTests(unittest.IsolatedAsyncioTestCase):
     async def test_disabled_cleanup_does_not_edit_message(self):
         bot = SimpleNamespace(edit_message_reply_markup=AsyncMock())
         session = {"message_id": 17,
-                   "updated_at": datetime.now(timezone.utc) - timedelta(seconds=301)}
+                   "updated_at": datetime.now(timezone.utc) - timedelta(seconds=181)}
         with patch.object(handlers.db, "get_browse_session", AsyncMock(return_value=session)), \
              patch.object(handlers.db, "group_settings", AsyncMock(return_value={"cleanup": False})):
             await handlers._expire_browse(bot, 45, -100, 17, 0)
@@ -21,7 +21,7 @@ class CleanupToggleTests(unittest.IsolatedAsyncioTestCase):
     async def test_enabled_cleanup_disables_old_buttons(self):
         bot = SimpleNamespace(edit_message_reply_markup=AsyncMock())
         session = {"message_id": 17,
-                   "updated_at": datetime.now(timezone.utc) - timedelta(seconds=301)}
+                   "updated_at": datetime.now(timezone.utc) - timedelta(seconds=181)}
         with patch.object(handlers.db, "get_browse_session", AsyncMock(return_value=session)), \
              patch.object(handlers.db, "group_settings", AsyncMock(return_value={"cleanup": True})):
             await handlers._expire_browse(bot, 45, -100, 17, 0)
