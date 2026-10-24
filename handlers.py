@@ -382,7 +382,7 @@ async def profile(update, context):
         label = ("🌍 " if row["is_public"] else "💗 ") + row["display_name"][:25]
         buttons.append([B(label, callback_data=f"profile_view:{row['group_id']}")])
     await update.message.reply_text(
-        f"💗 <b>ကိုယ့် Profile လေးများ</b>\\nProfile {len(rows)} ခု ရှိတယ်နော်။ 🌍 ဆိုတာ Public ဖွင့်ထားတဲ့ Profile ပါ။",
+        f"💗 <b>ကိုယ့် Profile လေးများ</b>\nProfile {len(rows)} ခု ရှိတယ်နော်။ 🌍 ဆိုတာ Public ဖွင့်ထားတဲ့ Profile ပါ။",
         parse_mode="HTML", reply_markup=K(buttons))
 
 async def profile_view(update, context):
