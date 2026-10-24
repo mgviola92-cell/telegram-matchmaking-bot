@@ -22,6 +22,19 @@ class SourceChecks(unittest.TestCase):
             seen = [say(event, user_id=994441) for _ in range(24)]
             self.assertEqual(len(seen), len(set(seen)))
 
+    def test_request_flow_requires_confirmation(self):
+        source = (ROOT / "handlers.py").read_text(encoding="utf-8")
+        self.assertIn('async def ask_confirm_callback', source)
+        self.assertIn('callback_data=f"ask_confirm:', source)
+        self.assertIn('async def intro_view', source)
+        self.assertIn('async def profile_delete_do', source)
+
+    def test_request_resolution_requires_active_profiles(self):
+        source = (ROOT / "repository.py").read_text(encoding="utf-8")
+        self.assertIn('sender.age>=18', source)
+        self.assertIn('recipient.age>=18', source)
+        self.assertIn('viewed_profiles', source)
+
     def test_private_invitation_commands_exist(self):
         source = (ROOT / "handlers.py").read_text(encoding="utf-8")
         for command in ('CommandHandler("inbox", inbox)', 'CommandHandler("outgoing", outgoing)'):
