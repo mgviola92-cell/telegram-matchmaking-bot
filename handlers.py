@@ -24,13 +24,13 @@ async def _expire_browse(bot, uid, gid, message_id, delay):
         if not session or session['message_id'] != message_id:
             return
         elapsed = (datetime.now(timezone.utc)-session['updated_at']).total_seconds()
-        if elapsed < 300:
-            # Avoid leaving an active card unexpired due to scheduling jitter.
-            await asyncio.sleep(300 - elapsed + 0.1)
+        if elapsed < 180:
+            # Re-check once after the exact three-minute inactivity deadline.
+            await asyncio.sleep(180 - elapsed + 0.1)
             session = await db.get_browse_session(uid,gid)
             if not session or session['message_id'] != message_id:
                 return
-            if (datetime.now(timezone.utc)-session['updated_at']).total_seconds() < 300:
+            if (datetime.now(timezone.utc)-session['updated_at']).total_seconds() < 180:
                 return
         settings = await db.group_settings(gid)
         if not settings["cleanup"]:
@@ -48,7 +48,7 @@ async def _expire_browse(bot, uid, gid, message_id, delay):
         if _browse_timer_tasks.get(key) is asyncio.current_task():
             _browse_timer_tasks.pop(key,None)
 
-def schedule_browse_timeout(bot,uid,gid,message_id,seconds=300):
+def schedule_browse_timeout(bot,uid,gid,message_id,seconds=180):
     key = (uid,gid)
     old = _browse_timer_tasks.pop(key,None)
     if old and not old.done():
@@ -57,7 +57,7 @@ def schedule_browse_timeout(bot,uid,gid,message_id,seconds=300):
 
 async def restore_browse_timeouts(bot):
     for item in await db.recent_browse_sessions():
-        seconds = 300 - (datetime.now(timezone.utc)-item['updated_at']).total_seconds()
+        seconds = 180 - (datetime.now(timezone.utc)-item['updated_at']).total_seconds()
         schedule_browse_timeout(bot,item['viewer_id'],item['group_id'],item['message_id'],seconds)
 
 async def shutdown_browse_timeouts():
