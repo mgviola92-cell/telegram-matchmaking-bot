@@ -80,14 +80,15 @@ async def member(bot, group_id, user_id):
     except TelegramError:
         return False
 
+OWNER_GROUP_INPUT = 8
+
 def owner_config():
-    """Off by default; never infer owners from group admin status."""
+    """A trusted owner must be preconfigured; first-visitor claim is unsafe."""
+    from owner_identity import OWNER_TELEGRAM_ID
     try:
-        owner_id = int(os.getenv("OWNER_ID", "0"))
-        test_group_id = int(os.getenv("TEST_GROUP_ID", "0"))
-    except ValueError:
+        return int(OWNER_TELEGRAM_ID or os.getenv("OWNER_ID", "0")), 0
+    except (TypeError, ValueError):
         return 0, 0
-    return owner_id, test_group_id
 
 def is_bot_owner(update):
     owner_id, _ = owner_config()
@@ -95,31 +96,82 @@ def is_bot_owner(update):
     return bool(owner_id and user and user.id == owner_id)
 
 async def owner_panel(update, context):
-    """Silently ignore everyone except the configured owner in bot private chat."""
+    """A private-only owner panel. Others get no messages and no error replies."""
     if not is_bot_owner(update) or update.effective_chat.type != "private":
-        return
-    _, group_id = owner_config()
+        return ConversationHandler.END
+    group_id = await db.get_owner_qa_group(update.effective_user.id)
     if not group_id:
         await update.effective_message.reply_text(
-            "🧪 Owner QA Panel\nTEST_GROUP_ID မသတ်မှတ်ရသေးလို့ Reset Mode ပိတ်ထားပါတယ်။")
-        return
-    count = await db.owner_test_request_count(update.effective_user.id, group_id)
+            "🧪 <b>Owner QA Setup</b>\n"
+            "ဒီတစ်ခါပဲ Test Group ID လေး ထည့်ပေးပါ။\n"
+            "Group ID က -100 နဲ့ စတဲ့ Telegram Numeric ID ဖြစ်ရမယ်။\n"
+            "/cancel နဲ့ ပြန်ထွက်နိုင်ပါတယ်။",
+            parse_mode="HTML")
+        return OWNER_GROUP_INPUT
+    count = await db.owner_test_request_count(update.effective_user.id,group_id)
     await update.effective_message.reply_text(
         f"🧪 <b>Owner QA Panel</b>\nTest Group: <code>{group_id}</code>\n"
-        f"Reset လုပ်နိုင်တဲ့ ကိုယ်ပို့ထားသော Test Request: <b>{count}</b> ခု\n"
-        "တကယ့် Group တွေရဲ့ Cooldown ကို မပြောင်းပါဘူး။",
+        f"ကိုယ်ပို့ထားသော Test Request: <b>{count}</b> ခု\n"
+        "Reset လုပ်ပြီးရင် လက်ခံသူက Request အသစ်ကို ပြန်ဖြေနိုင်ပါတယ်။",
         parse_mode="HTML",
         reply_markup=K([[B("♻️ Test Request Reset",callback_data="owner:ask_reset")],
+                        [B("⚙️ Test Group ပြောင်းမယ်",callback_data="owner:enter_group")],
                         [B("🔄 ပြန်စစ်မယ်",callback_data="owner:refresh")]]))
+    return ConversationHandler.END
+
+async def owner_change_group(update, context):
+    q = update.callback_query
+    if not is_bot_owner(update) or q.message.chat.type != "private":
+        return ConversationHandler.END
+    await q.answer()
+    await q.edit_message_text(
+        "🧪 Test Group ID အသစ်ကို ရိုက်ထည့်ပေးပါ။\n"
+        "ဥပမာ: -1001234567890\n/cancel နဲ့ ပြန်ထွက်နိုင်တယ်။")
+    return OWNER_GROUP_INPUT
+
+async def owner_group_input(update, context):
+    if not is_bot_owner(update) or update.effective_chat.type != "private":
+        return ConversationHandler.END
+    value = update.message.text.strip()
+    try:
+        group_id = int(value)
+    except ValueError:
+        await update.message.reply_text("🌷 Group ID ကို ဂဏန်းနဲ့ပဲ ထည့်ပေးနော်။")
+        return OWNER_GROUP_INPUT
+    if group_id >= 0 or not str(group_id).startswith("-100"):
+        await update.message.reply_text("🌷 Telegram Supergroup ID (-100...) ကို ထည့်ပေးနော်။")
+        return OWNER_GROUP_INPUT
+    try:
+        member_info = await context.bot.get_chat_member(group_id,update.effective_user.id)
+        bot_info = await context.bot.get_me()
+        bot_member = await context.bot.get_chat_member(group_id,bot_info.id)
+    except TelegramError:
+        await update.message.reply_text(
+            "🌷 ဒီ Group ကို Bot က မဖတ်နိုင်သေးဘူး။ Bot ကို Group ထဲထည့်ပြီး ပြန်စမ်းပေးနော်။")
+        return OWNER_GROUP_INPUT
+    if member_info.status not in ("administrator","creator") or bot_member.status not in ("member","administrator","creator"):
+        await update.message.reply_text(
+            "🌷 Test Group ရဲ့ Admin ဖြစ်ရမယ်၊ Bot လည်း Group ထဲရှိရမယ်နော်။")
+        return OWNER_GROUP_INPUT
+    await db.set_owner_qa_group(update.effective_user.id,group_id)
+    await update.message.reply_text(
+        f"✅ Test Group <code>{group_id}</code> ကို သိမ်းထားပြီးပြီ။\n"
+        "နောက်တစ်ကြိမ် /owner ဖွင့်ရင် ထပ်မမေးတော့ဘူး။",
+        parse_mode="HTML")
+    return ConversationHandler.END
+
+async def owner_group_cancel(update, context):
+    if is_bot_owner(update) and update.effective_chat.type == "private":
+        await update.message.reply_text("🌷 Owner Setup ကို ရပ်ထားလိုက်ပြီ။")
+    return ConversationHandler.END
 
 async def owner_callback(update, context):
     q = update.callback_query
     if not is_bot_owner(update) or q.message.chat.type != "private":
-        # No answer or message on unauthorized owner actions.
         return
-    owner_id, group_id = owner_config()
+    owner_id = q.from_user.id
+    group_id = await db.get_owner_qa_group(owner_id)
     if not group_id:
-        await q.answer("TEST_GROUP_ID မရှိသေးဘူး။",show_alert=True)
         return
     action = q.data.split(":",1)[1]
     if action == "ask_reset":
@@ -127,7 +179,9 @@ async def owner_callback(update, context):
         await q.answer()
         await q.edit_message_text(
             f"🧪 Test Group <code>{group_id}</code> ထဲမှာ ကိုယ်ပို့ထားတဲ့ Request "
-            f"<b>{count}</b> ခုကို ဖျက်ပြီး ထပ်စမ်းနိုင်အောင် ပြန်စမလား?",
+            f"<b>{count}</b> ခုကို Reset လုပ်မလား?\n"
+            "လက်ခံ/ငြင်းခဲ့တဲ့ Request တွေပါ Reset လုပ်ပြီး "
+            "Request အသစ်ကို လက်ခံသူက ထပ်ဖြေနိုင်ပါမယ်။",
             parse_mode="HTML",
             reply_markup=K([[B("✅ Test Request များ Reset",callback_data="owner:reset")],
                             [B("↩️ မလုပ်တော့ဘူး",callback_data="owner:refresh")]]))
@@ -145,11 +199,11 @@ async def owner_callback(update, context):
                             await context.bot.edit_message_reply_markup(
                                 chat_id=group_id,message_id=message_id,reply_markup=None)
                         except TelegramError:
-                            logging.info("Old test request message unavailable for cleanup")
-        await q.answer("Test Requests Reset ပြီးပြီ")
+                            logging.info("Test group request message could not be cleaned")
+        await q.answer("Reset ပြီးပြီ")
         await q.edit_message_text(
-            f"✅ Test Group ထဲမှာ ကိုယ်ပို့ထားတဲ့ Request {len(rows)} ခုကို Reset လုပ်ပြီးပြီ။\n"
-            "ပုံမှန် Request Rules တွေကတော့ မပြောင်းပါဘူး။",
+            f"✅ Test Request {len(rows)} ခု Reset လုပ်ပြီးပြီ။\n"
+            "ဖိတ်ခေါ်စာ အသစ်ပြန်ပို့ပြီး လက်ခံ/ငြင်းတာကို ထပ်စမ်းလို့ရပြီ။",
             reply_markup=K([[B("🔄 Owner Panel",callback_data="owner:refresh")]]))
         return
     if action == "refresh":
@@ -159,7 +213,8 @@ async def owner_callback(update, context):
             f"🧪 <b>Owner QA Panel</b>\nTest Group: <code>{group_id}</code>\n"
             f"ကိုယ်ပို့ထားသော Test Request: <b>{count}</b> ခု",
             parse_mode="HTML",
-            reply_markup=K([[B("♻️ Test Request Reset",callback_data="owner:ask_reset")]]))
+            reply_markup=K([[B("♻️ Test Request Reset",callback_data="owner:ask_reset")],
+                            [B("⚙️ Test Group ပြောင်းမယ်",callback_data="owner:enter_group")]]))
 
 def private_menu():
     """Telegram-native inline navigation; no web app."""
@@ -1299,7 +1354,14 @@ def handlers():
         fallbacks=[CommandHandler("cancel",reason_cancel)],
         allow_reentry=True,
     )
-    return [registration, profile_editor, reason_editor, CommandHandler("owner",owner_panel),
+    owner_setup = ConversationHandler(
+        entry_points=[CommandHandler("owner",owner_panel),
+                      CallbackQueryHandler(owner_change_group,pattern=r"^owner:enter_group$")],
+        states={OWNER_GROUP_INPUT:[MessageHandler(filters.TEXT & ~filters.COMMAND,owner_group_input)]},
+        fallbacks=[CommandHandler("cancel",owner_group_cancel)],
+        allow_reentry=True,
+    )
+    return [registration, profile_editor, reason_editor, owner_setup,
             CallbackQueryHandler(owner_callback,pattern=r"^owner:"), ChatMemberHandler(membership_change,ChatMemberHandler.CHAT_MEMBER), CommandHandler("register", register), CommandHandler("match", match),
             CallbackQueryHandler(browse_callback, pattern=r"^browse:"),
             CallbackQueryHandler(browse_mode_callback, pattern=r"^browse_mode:"),
