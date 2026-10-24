@@ -32,6 +32,8 @@ async def lifespan(app: FastAPI):
         await telegram_app.start()
         if BASE_URL and SECRET:
             await telegram_app.bot.set_webhook(BASE_URL + "/telegram/webhook", secret_token=SECRET)
+        else:
+            logging.warning("PUBLIC_BASE_URL or WEBHOOK_SECRET missing; webhook not registered")
     else:
         logging.warning("BOT_TOKEN missing; health endpoint only")
     yield
@@ -44,13 +46,20 @@ app = FastAPI(lifespan=lifespan)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "bot_configured": bool(TOKEN)}
+    return {"status": "ok", "bot_configured": bool(TOKEN), "webhook_configured": bool(TOKEN and SECRET and BASE_URL), "database_configured": bool(os.getenv("DATABASE_URL"))}
 
 @app.post("/telegram/webhook")
 async def webhook(request: Request):
     if not telegram_app or not SECRET or request.headers.get("X-Telegram-Bot-Api-Secret-Token") != SECRET:
         raise HTTPException(status_code=403, detail="Forbidden")
-    payload = await request.json()
-    update = Update.de_json(payload, telegram_app.bot)
+    try:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            raise ValueError("Update must be an object")
+        update = Update.de_json(payload, telegram_app.bot)
+        if update is None:
+            raise ValueError("Empty update")
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid Telegram update") from exc
     await telegram_app.process_update(update)
     return {"ok": True}
