@@ -33,8 +33,8 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 - Unified private incoming inbox newest first; outgoing list and withdraw with confirmation. Atomic/idempotent transitions.
 
 ## Profile and group management — agreed, pending
-- `/profile` selects among group profiles; picker and public selection are implemented in code. Editing and deletion are pending.
-- Delete removes profile and pending requests, disables old buttons where feasible, informs affected requesters privately; no group announcement; reset cooldown.
+- `/profile` selects among group profiles; picker, public selection, display name/bio/media edits and confirmed deletion are coded, with runtime user testing still pending.
+- Delete removes profile and pending requests, disables old buttons where feasible, informs affected requesters privately; no group announcement; reset cooldown. Database deletion and sender notifications are coded; old message-button cleanup is incomplete.
 - Leaving group archives profile; rejoining restores.
 - Per-group admin `/settings`: matchmaking, registration, requests, public browse, intros, cleanup toggles. No group-link settings. Toggle UI/storage is implemented; enforcement of registration, matchmaking, and outgoing requests is implemented. Public browse, intros and cleanup enforcement are pending.
 
