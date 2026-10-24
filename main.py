@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request, HTTPException
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from handlers import handlers, restore_browse_timeouts, shutdown_browse_timeouts
-from db import init_schema, close as close_db
+from db import init_schema, pool, close as close_db
 
 logging.basicConfig(level=logging.INFO)
 # HTTP client request logs may include Telegram bot credentials in URL paths.
@@ -53,6 +53,22 @@ app = FastAPI(lifespan=lifespan)
 @app.get("/health")
 async def health():
     return {"status": "ok", "bot_configured": bool(TOKEN), "webhook_configured": bool(TOKEN and SECRET and BASE_URL), "database_configured": bool(os.getenv("DATABASE_URL"))}
+
+@app.get("/ready")
+async def readiness():
+    """On-demand dependency check; never prints credentials."""
+    if not (TOKEN and SECRET and BASE_URL and os.getenv("DATABASE_URL")):
+        raise HTTPException(status_code=503, detail="Required bot configuration is missing")
+    try:
+        p = await pool()
+        async with p.acquire() as conn:
+            healthy = await conn.fetchval("SELECT 1")
+        if healthy != 1:
+            raise RuntimeError("Postgres readiness query failed")
+    except Exception:
+        logging.exception("Database readiness check failed")
+        raise HTTPException(status_code=503, detail="Database unavailable") from None
+    return {"ready": True, "telegram_initialized": telegram_app is not None, "database": "connected"}
 
 @app.post("/telegram/webhook")
 async def webhook(request: Request):
