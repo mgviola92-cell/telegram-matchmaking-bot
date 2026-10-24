@@ -2,14 +2,15 @@
 from datetime import datetime, timezone, timedelta
 from db import pool
 
-async def upsert_profile(user_id, group_id, name, age, media_type, file_id, bio=None):
+async def upsert_profile(user_id, group_id, name, media_type, file_id, bio=None):
     p = await pool()
     async with p.acquire() as c:
-        return await c.fetchrow("""INSERT INTO profiles(user_id,group_id,display_name,age,bio,media_type,media_file_id,archived)
-            VALUES($1,$2,$3,$4,$5,$6,$7,false)
-            ON CONFLICT(user_id,group_id) DO UPDATE SET display_name=excluded.display_name, age=excluded.age,
-            bio=excluded.bio,media_type=excluded.media_type,media_file_id=excluded.media_file_id,archived=false
-            RETURNING *""",user_id,group_id,name,age,bio,media_type,file_id)
+        return await c.fetchrow("""INSERT INTO profiles(user_id,group_id,display_name,age,bio,media_type,media_file_id,archived,adult_self_confirmed)
+            VALUES($1,$2,$3,NULL,$4,$5,$6,false,true)
+            ON CONFLICT(user_id,group_id) DO UPDATE SET display_name=excluded.display_name, age=NULL,
+            bio=excluded.bio,media_type=excluded.media_type,media_file_id=excluded.media_file_id,archived=false,
+            adult_self_confirmed=true
+            RETURNING *""",user_id,group_id,name,bio,media_type,file_id)
 
 async def get_profile(user_id, group_id):
     p = await pool()
@@ -48,7 +49,7 @@ async def browse_profiles(viewer_id, group_id, public=False, limit=50):
             LEFT JOIN viewed_profiles v ON
                 v.viewer_id=$1 AND v.viewer_group_id=$2
                 AND v.target_id=p.user_id AND v.target_group_id=p.group_id
-            WHERE NOT p.archived AND p.age>=18 AND p.user_id<>$1
+            WHERE NOT p.archived AND p.adult_self_confirmed AND p.user_id<>$1
                 AND (p.group_id=$2 OR ($3 AND p.is_public))
             ORDER BY (v.target_id IS NOT NULL), random() LIMIT $4""",viewer_id,group_id,public,limit)
 
@@ -90,10 +91,10 @@ async def resolve_request(request_id, recipient_id, action):
           WHERE r.id=$1 AND r.recipient_id=$2 AND r.status='pending' AND r.expires_at>now()
             AND EXISTS (SELECT 1 FROM profiles sender
               WHERE sender.user_id=r.sender_id AND sender.group_id=r.sender_group_id
-                AND NOT sender.archived AND sender.age>=18)
+                AND NOT sender.archived AND sender.adult_self_confirmed)
             AND EXISTS (SELECT 1 FROM profiles recipient
               WHERE recipient.user_id=r.recipient_id AND recipient.group_id=r.recipient_group_id
-                AND NOT recipient.archived AND recipient.age>=18)
+                AND NOT recipient.archived AND recipient.adult_self_confirmed)
           RETURNING r.*""",request_id,recipient_id,action)
 
 async def withdraw_request(request_id, sender_id):
