@@ -25,10 +25,6 @@ CREATE TABLE IF NOT EXISTS requests (
 CREATE INDEX IF NOT EXISTS pending_requests_recipient ON requests(recipient_id,created_at DESC) WHERE status='pending';
 CREATE INDEX IF NOT EXISTS request_sender_target ON requests(sender_id,recipient_id,created_at DESC);
 
--- Upgrade earlier development databases that used the 13–17 check.
-ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_age_check;
-ALTER TABLE profiles ADD CONSTRAINT profiles_age_check CHECK (age BETWEEN 18 AND 120) NOT VALID;
-
 -- Group administrators control these features without recurring polling.
 CREATE TABLE IF NOT EXISTS group_settings (
  group_id BIGINT PRIMARY KEY,
