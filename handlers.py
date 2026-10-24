@@ -367,6 +367,75 @@ async def withdraw_do(update, context):
     await q.answer("ပြန်ရုပ်သိမ်းပြီးပြီ 💗")
     await q.edit_message_text("🌷 ဖိတ်ခေါ်စာလေးကို ပြန်ရုပ်သိမ်းပြီးပါပြီ။")
 
+
+async def profile(update, context):
+    """List own profiles in private; public selection is opt-in."""
+    if update.effective_chat.type != "private":
+        await update.message.reply_text("💗 Profile လေးတွေကို Private Chat မှာပဲ စီမံကြမယ်နော်။")
+        return
+    rows = await db.user_profiles(update.effective_user.id)
+    if not rows:
+        await update.message.reply_text("🌷 Profile လေး မရှိသေးဘူးနော်။ Group ထဲက /register နဲ့ စကြမယ်။")
+        return
+    buttons = []
+    for row in rows:
+        label = ("🌍 " if row["is_public"] else "💗 ") + row["display_name"][:25]
+        buttons.append([B(label, callback_data=f"profile_view:{row['group_id']}")])
+    await update.message.reply_text(
+        f"💗 <b>ကိုယ့် Profile လေးများ</b>\\nProfile {len(rows)} ခု ရှိတယ်နော်။ 🌍 ဆိုတာ Public ဖွင့်ထားတဲ့ Profile ပါ။",
+        parse_mode="HTML", reply_markup=K(buttons))
+
+async def profile_view(update, context):
+    q = update.callback_query
+    if q.message.chat.type != "private":
+        await q.answer("Private Chat မှာပဲ ဖွင့်ပေးနော်။", show_alert=True)
+        return
+    try:
+        group_id = int(q.data.split(":", 1)[1])
+    except (ValueError, AttributeError):
+        await q.answer("ဒီခလုတ်လေး အဆင်မပြေတော့ဘူး။", show_alert=True)
+        return
+    p = await db.get_profile(q.from_user.id, group_id)
+    if not p:
+        await q.answer("Profile လေး မရှိတော့ဘူးနော်။", show_alert=True)
+        return
+    await q.answer()
+    public = bool(p["is_public"])
+    toggle = B("🌷 Public ပိတ်မယ်" if public else "🌍 Public ဖွင့်မယ်",
+               callback_data=f"profile_public:{group_id}:{0 if public else 1}")
+    await show_profile(context.bot, q.from_user.id, p, K([[toggle]]))
+
+async def profile_public(update, context):
+    q = update.callback_query
+    if q.message.chat.type != "private":
+        await q.answer("Private Chat မှာပဲ ပြောင်းနိုင်တယ်နော်။", show_alert=True)
+        return
+    try:
+        _, group_str, state_str = q.data.split(":")
+        gid, state = int(group_str), int(state_str)
+    except (AttributeError, ValueError):
+        await q.answer("ဒီခလုတ်လေး အဆင်မပြေတော့ဘူး။", show_alert=True)
+        return
+    p = await db.get_profile(q.from_user.id, gid)
+    if not p or state not in (0, 1):
+        await q.answer("Profile လေး မရှိတော့ဘူးနော်။", show_alert=True)
+        return
+    if state:
+        if not await member(context.bot, gid, q.from_user.id):
+            await q.answer("အဲဒီ Group ထဲမှာ မရှိတော့လို့ Public မဖွင့်နိုင်ဘူးနော်။", show_alert=True)
+            return
+        result = await db.set_public_profile(q.from_user.id, gid)
+        if not result:
+            await q.answer("Profile လေး မရှိတော့ဘူးနော်။", show_alert=True)
+            return
+    else:
+        await db.set_private_profile(q.from_user.id, gid)
+    await q.answer("💗 Profile အပြင်အဆင် သိမ်းပြီးပြီ။")
+    await q.edit_message_reply_markup(reply_markup=K([[
+        B("🌷 Public ပိတ်မယ်" if state else "🌍 Public ဖွင့်မယ်",
+          callback_data=f"profile_public:{gid}:{0 if state else 1}")
+    ]]))
+
 def handlers():
     registration = ConversationHandler(
         entry_points=[CommandHandler("start", start, filters.ChatType.PRIVATE)],
@@ -384,6 +453,8 @@ def handlers():
             CallbackQueryHandler(ask_callback, pattern=r"^ask:"), CallbackQueryHandler(reply_callback, pattern=r"^reply:"),
             CallbackQueryHandler(decide_callback, pattern=r"^decide:"),
             CommandHandler("inbox", inbox), CommandHandler("outgoing", outgoing),
+            CommandHandler("profile", profile), CallbackQueryHandler(profile_view, pattern=r"^profile_view:"),
+            CallbackQueryHandler(profile_public, pattern=r"^profile_public:"),
             CallbackQueryHandler(inbox_open, pattern=r"^inbox_open:"),
             CallbackQueryHandler(withdraw_ask, pattern=r"^withdraw_ask:"),
             CallbackQueryHandler(withdraw_do, pattern=r"^withdraw_(do:|cancel$)")]
