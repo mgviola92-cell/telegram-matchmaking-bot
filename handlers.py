@@ -362,6 +362,11 @@ async def ask_callback(update, context):
     if not (await db.group_settings(source_group))["requests"]:
         await q.answer("🌷 ဒီ Group မှာ Request ပို့ခြင်းကို ခဏပိတ်ထားတယ်နော်။", show_alert=True)
         return
+    touched = await db.touch_browse_session(invoker,source_group,q.message.message_id)
+    if not touched:
+        await q.answer("ဒီမိတ်ဆက်ကတ်လေး သက်တမ်းကုန်သွားပြီနော်။",show_alert=True)
+        return
+    schedule_browse_timeout(context.bot,invoker,source_group,q.message.message_id)
     result = await db.send_request(invoker, source_group, target_user, target_group)
     if not result:
         await q.answer("အချစ်စာလေး ပို့ထားပြီးသား ဖြစ်နိုင်ပါတယ် 💌", show_alert=True)
