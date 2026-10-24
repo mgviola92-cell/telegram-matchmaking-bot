@@ -68,3 +68,11 @@ async def withdraw_request(request_id, sender_id):
     async with p.acquire() as c:
         return await c.fetchrow("""UPDATE requests SET status='withdrawn' WHERE id=$1 AND sender_id=$2
           AND status='pending' AND expires_at>now() RETURNING *""",request_id,sender_id)
+
+async def pending_request_for_recipient(request_id, recipient_id):
+    """Read a live request only for its intended recipient."""
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetchrow("""SELECT * FROM requests
+            WHERE id=$1 AND recipient_id=$2 AND status='pending'
+            AND expires_at>now()""", request_id, recipient_id)
