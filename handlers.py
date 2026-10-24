@@ -69,7 +69,16 @@ async def shutdown_browse_timeouts():
         await asyncio.gather(*tasks,return_exceptions=True)
 
 def caption(p):
-    return f"💗 <b>{html.escape(p['display_name'])}</b>\n\n{html.escape(p['bio'] or 'စကားလေးတွေ ပြောကြည့်ရအောင် 💌')}"
+    name = html.escape(p["display_name"])
+    bio = html.escape(p["bio"] or "ကိုယ့်အကြောင်း မရေးထားသေးဘူးနော် 👀")
+    return f"🎀 <b>{name}</b>\n{bio}"
+
+def media_caption(p, header=""):
+    """On request cards the header already gives the name; do not repeat it."""
+    if not header:
+        return caption(p)
+    bio = html.escape(p["bio"] or "")
+    return header + (f"\n{bio}" if bio else "")
 
 async def member(bot, group_id, user_id):
     try:
@@ -475,7 +484,7 @@ async def request_recipient_username(bot, group_id, user_id):
 
 
 async def show_profile(bot, chat_id, p, keyboard, *, header="", reply_to_message_id=None):
-    kw = {"caption": header + caption(p), "parse_mode": "HTML", "reply_markup": keyboard}
+    kw = {"caption": media_caption(p, header), "parse_mode": "HTML", "reply_markup": keyboard}
     if reply_to_message_id is not None:
         kw["reply_to_message_id"] = reply_to_message_id
     if p["media_type"] == "video":
@@ -488,7 +497,7 @@ async def match(update, context):
         return
     gid, uid = update.effective_chat.id, update.effective_user.id
     if not (await db.group_settings(gid))["matchmaking"]:
-        await update.message.reply_text("🌷 ဒီ Group မှာ Matchmaking ကို Admin က ခဏပိတ်ထားတယ်နော်။")
+        await update.message.reply_text("🌷 ဒီဝိုင်းရဲ့ လူတောင်းပွဲကို Admin က ခဏနားထားတယ်နော်။")
         return
     own = await db.get_profile(uid, gid)
     if not own:
@@ -514,11 +523,11 @@ async def match(update, context):
 
 def match_buttons(uid, gid, p, position, total, public):
     return K([
-        [B("⬅️ အရင်တစ်ယောက်", callback_data=f"browse:{uid}:{gid}:-1"),
-         B("➡️ နောက်တစ်ယောက်", callback_data=f"browse:{uid}:{gid}:1")],
-        [B("🌍 Public" if not public else "🏡 Group Only",
+        [B("⬅️ အရင်လူလေး", callback_data=f"browse:{uid}:{gid}:-1"),
+         B("➡️ နောက်လူလေး", callback_data=f"browse:{uid}:{gid}:1")],
+        [B("🌍 ဝိုင်းကျော်လှည့်မယ်" if not public else "🏡 ဒီဝိုင်းပဲ ကြည့်မယ်",
            callback_data=f"browse_mode:{uid}:{gid}")],
-        [B("💌 တောင်းမယ်", callback_data=f"ask:{uid}:{gid}:{p['user_id']}:{p['group_id']}")],
+        [B("💌 မိတ်ဆက်ခွင့်တောင်းမယ်", callback_data=f"ask:{uid}:{gid}:{p['user_id']}:{p['group_id']}")],
     ])
 
 async def edit_browse_card(q, uid, gid, p, pos, count, public):
@@ -542,7 +551,7 @@ async def browse_callback(update, context):
         return
     session = await db.advance_browse_session(uid,gid,q.message.message_id,delta)
     if not session:
-        await q.answer("🌷 ကတ်လေး သက်တမ်းကုန်သွားပြီ။ /match နဲ့ ပြန်စကြမယ်နော်။", show_alert=True)
+        await q.answer("🌷 ဒီကတ်လေး အချိန်ပြည့်သွားပြီ။ /match နဲ့ နောက်တစ်ပွဲ ပြန်စကြမယ်နော်။", show_alert=True)
         try:
             await q.edit_message_reply_markup(reply_markup=None)
         except TelegramError:
@@ -599,7 +608,7 @@ async def browse_mode_callback(update, context):
     keys = [[r["user_id"],r["group_id"]] for r in results]
     await db.save_browse_session(uid,gid,q.message.message_id,public,keys)
     schedule_browse_timeout(context.bot,uid,gid,q.message.message_id)
-    await q.answer("🌍 Public Browse" if public else "🏡 Group Only")
+    await q.answer("🌍 ဝိုင်းကျော်လှည့်ပြီ" if public else "🏡 ဒီဝိုင်းထဲပြန်ရောက်ပြီ")
     try:
         await edit_browse_card(q,uid,gid,results[0],0,len(results),public)
         await db.mark_profile_viewed(uid,gid,results[0]["user_id"],results[0]["group_id"])
@@ -619,7 +628,7 @@ async def ask_callback(update, context):
         return
     session = await db.active_browse_session(invoker,source_group)
     if not session or session["message_id"] != q.message.message_id:
-        await q.answer("🌷 ဒီမိတ်ဆက်ကတ်လေး သက်တမ်းကုန်ပြီ။ /match နဲ့ ပြန်စကြမယ်နော်။", show_alert=True)
+        await q.answer("🌷 ဒီကတ်က ပွဲချိန်ကုန်ပြီနော်။ /match နဲ့ ပြန်လှည့်ကြမယ်။", show_alert=True)
         return
     keys = session["profile_keys"]
     if isinstance(keys, str):
@@ -633,7 +642,7 @@ async def ask_callback(update, context):
     source = await db.get_profile(invoker, source_group)
     target = await db.get_profile(target_user, target_group)
     if not source or not target:
-        await q.answer("Profile လေး မရှိတော့ဘူးနော်။", show_alert=True)
+        await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။", show_alert=True)
         return
     if not (await db.group_settings(source_group))["requests"]:
         await q.answer("🌷 ဒီ Group မှာ Request ပို့ခြင်းကို ခဏပိတ်ထားတယ်နော်။", show_alert=True)
@@ -677,11 +686,11 @@ async def ask_confirm_callback(update, context):
     source = await db.get_profile(invoker,source_group)
     target = await db.get_profile(target_user,target_group)
     if not source or not target:
-        await q.answer("Profile လေး မရှိတော့ဘူးနော်။",show_alert=True)
+        await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။",show_alert=True)
         return
     touched = await db.touch_browse_session(invoker,source_group,session["message_id"])
     if not touched:
-        await q.answer("ဒီမိတ်ဆက်ကတ်လေး သက်တမ်းကုန်သွားပြီနော်။",show_alert=True)
+        await q.answer("ဒီကတ်လေး ပွဲချိန်ကုန်သွားပြီနော်။",show_alert=True)
         return
     schedule_browse_timeout(context.bot,invoker,source_group,session["message_id"])
     result = await db.send_request(invoker, source_group, target_user, target_group)
@@ -886,7 +895,7 @@ async def inbox_open(update, context):
         return
     sender = await db.get_profile(req["sender_id"], req["sender_group_id"])
     if not sender:
-        await q.answer("Profile လေး မရှိတော့ဘူးနော်။", show_alert=True)
+        await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။", show_alert=True)
         return
     await q.answer()
     try:
@@ -995,7 +1004,7 @@ async def profile_view(update, context):
         return
     p = await db.get_profile(q.from_user.id, group_id)
     if not p:
-        await q.answer("Profile လေး မရှိတော့ဘူးနော်။", show_alert=True)
+        await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။", show_alert=True)
         return
     await q.answer()
     actions = profile_actions(group_id, bool(p["is_public"]))
@@ -1021,7 +1030,7 @@ async def profile_public(update, context):
         return
     p = await db.get_profile(q.from_user.id, gid)
     if not p or state not in (0, 1):
-        await q.answer("Profile လေး မရှိတော့ဘူးနော်။", show_alert=True)
+        await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။", show_alert=True)
         return
     if state:
         if not await member(context.bot, gid, q.from_user.id):
@@ -1029,7 +1038,7 @@ async def profile_public(update, context):
             return
         result = await db.set_public_profile(q.from_user.id, gid)
         if not result:
-            await q.answer("Profile လေး မရှိတော့ဘူးနော်။", show_alert=True)
+            await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။", show_alert=True)
             return
     else:
         await db.set_private_profile(q.from_user.id, gid)
@@ -1050,7 +1059,7 @@ async def profile_edit_begin(update, context):
         await q.answer("ခလုတ်လေး အဆင်မပြေတော့ဘူး။",show_alert=True)
         return ConversationHandler.END
     if field not in ("display_name","bio","media") or not await db.get_profile(q.from_user.id,gid):
-        await q.answer("Profile လေး မရှိတော့ဘူးနော်။",show_alert=True)
+        await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။",show_alert=True)
         return ConversationHandler.END
     context.user_data["profile_edit"] = {"group_id":gid,"field":field}
     await q.answer()
@@ -1114,7 +1123,7 @@ async def profile_delete_ask(update, context):
         await q.answer("ခလုတ်လေး အဆင်မပြေတော့ဘူးနော်။",show_alert=True)
         return
     if not await db.get_profile(q.from_user.id,gid):
-        await q.answer("Profile လေး မရှိတော့ဘူးနော်။",show_alert=True)
+        await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။",show_alert=True)
         return
     await q.answer()
     await q.edit_message_caption(caption="🗑 ဒီ Group အတွက် Profile လေးကို တကယ်ဖျက်မလား? ဖျက်ပြီးရင် ပြန်ယူလို့မရဘူးနော်။",
@@ -1137,7 +1146,7 @@ async def profile_delete_do(update, context):
         return
     result = await db.delete_profile(q.from_user.id,gid)
     if result is None:
-        await q.answer("Profile လေး မရှိတော့ဘူးနော်။",show_alert=True)
+        await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။",show_alert=True)
         return
     await q.answer("Profile ဖျက်ပြီးပြီ")
     await q.edit_message_caption(caption=say("profile_deleted",q.from_user.id),reply_markup=None)
@@ -1257,7 +1266,7 @@ async def intro_confirm_callback(update, context):
     source = await db.get_profile(sender_id,gid)
     target = await db.get_profile(target_id,gid)
     if not source or not target:
-        await q.answer("Profile လေး မရှိတော့ဘူးနော်။",show_alert=True)
+        await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။",show_alert=True)
         return
     result = await db.send_request(sender_id,gid,target_id,gid)
     if not result:
