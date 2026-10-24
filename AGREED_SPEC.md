@@ -18,8 +18,8 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 - Age confirmation is part of registration, not a repeated question at every request.
 
 ## Discovery — agreed, mostly pending
-- One active `/match` card per viewer per group. Buttons usable by its owner only. Navigation, per-group session storage and Public switch are coded. One-shot asynchronous five-minute inactivity button cleanup is coded, with a one-time restart recovery query; runtime behavior still requires end-to-end testing.
-- Prev/Next edit the same card, unseen-first shuffled order, 5-minute inactivity timeout, timer reset on interaction, persisted across restarts.
+- One active `/match` card per viewer per group. Buttons usable by its owner only. Navigation, per-group session storage and Public switch are coded. One-shot asynchronous three-minute inactivity button cleanup is coded, with a one-time restart recovery query; runtime behavior still requires end-to-end testing.
+- Prev/Next edit the same card, unseen-first shuffled order, 3-minute inactivity timeout, timer reset on interaction, persisted across restarts.
 - Group Only default. Public Browse toggle adds profiles voluntarily made public, including from the current group.
 - One public profile per person across all groups; switching public profile demotes the former.
 - Pending request from a sender is shown to its recipient with a contextual reply button.
@@ -58,3 +58,9 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 - Non-owners and /owner in group chats are silent.
 - QA reset uses confirmation; deletes only owner-sent requests where both parties' profiles are in the selected test group, including prior accepted/rejected outcomes, so a NEW request can be sent and recipient can accept/reject again. Old request buttons remain invalid even if Telegram cannot delete the messages.
 - This is test-only; user-facing cooldown rules remain unchanged. Use a dedicated non-production test group.
+
+
+## October 2026 match-card and request presentation adjustment
+- /match card is valid for **three minutes (180 seconds) of inactivity**, not five. Navigation, request actions, and mode switching reset this timer; PostgreSQL session validity, timer tasks, and restart recovery use the same deadline.
+- Request card posted in the recipient's own group has a concise `Sender → Recipient · လူတောင်းစာ #ID` header. The recipient name is a clickable Telegram mention: `@username` and its account URL if available; otherwise `tg://user?id=<numeric id>` so an account is linkable without a username. Do not expose raw numeric IDs in visible captions. Telegram notification behavior depends on the recipient's app settings.
+- Avoid robotic or technical English labels in every user-facing bot message; prefer playful, concise Burmese native to the လူတောင်းပွဲ theme. Do not duplicate the sender name below an already labelled request header.
