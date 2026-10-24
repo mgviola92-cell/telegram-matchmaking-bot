@@ -97,9 +97,6 @@ async def show_menu_page(q, text, keyboard):
             await q.message.delete()
         except TelegramError:
             logging.warning("Cannot remove old media menu; aborting navigation")
-            await q.message.chat.send_message(
-                "🌷 ကတ်အဟောင်းကို ဖယ်မရလို့ ဒီခလုတ်တွေကို ပြန်သုံးပေးနော်။",
-                reply_markup=private_menu())
             return
         await q.message.chat.send_message(text, reply_markup=keyboard)
     else:
@@ -799,7 +796,7 @@ async def profile_view(update, context):
     try:
         await q.message.delete()
     except TelegramError:
-        await q.answer("ကတ်အဟောင်းကို ဖျက်မရလို့ ပြန်စမ်းပေးနော်။", show_alert=True)
+        logging.warning("Cannot remove prior profile picker; retaining it")
         return
     await show_profile(context.bot, q.from_user.id, p, actions)
 
