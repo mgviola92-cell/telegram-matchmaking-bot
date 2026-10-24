@@ -283,7 +283,7 @@ async def inbox(update, context):
         await update.message.reply_text("🌷 ဖွင့်ကြည့်လို့ရတဲ့ အချစ်စာလေး မရှိတော့ဘူးနော်။")
         return
     await update.message.reply_text(
-        f"💌 <b>ဝင်လာတဲ့ အချစ်စာလေးများ</b>\\nအဖြေစောင့်နေတဲ့ စာ {len(items)} စောင် ရှိတယ်နော်။",
+        f"💌 <b>ဝင်လာတဲ့ အချစ်စာလေးများ</b>\nအဖြေစောင့်နေတဲ့ စာ {len(items)} စောင် ရှိတယ်နော်။",
         parse_mode="HTML", reply_markup=K(buttons))
 
 async def inbox_open(update, context):
@@ -324,7 +324,7 @@ async def outgoing(update, context):
             buttons.append([B(f"💌 {target['display_name'][:25]} · ပြန်ရုပ်သိမ်းမယ်",
                               callback_data=f"withdraw_ask:{row['id']}")])
     await update.message.reply_text(
-        f"💌 <b>ပို့ထားတဲ့ ဖိတ်ခေါ်စာများ</b>\\nအဖြေစောင့်နေတဲ့ စာ {len(items)} စောင် ရှိတယ်နော်။",
+        f"💌 <b>ပို့ထားတဲ့ ဖိတ်ခေါ်စာများ</b>\nအဖြေစောင့်နေတဲ့ စာ {len(items)} စောင် ရှိတယ်နော်။",
         parse_mode="HTML", reply_markup=K(buttons) if buttons else None)
 
 async def withdraw_ask(update, context):
