@@ -225,3 +225,11 @@ async def update_profile_media(user_id, group_id, media_type, file_id):
         return await c.fetchrow("""UPDATE profiles SET media_type=$3,media_file_id=$4
             WHERE user_id=$1 AND group_id=$2 AND NOT archived RETURNING *""",
             user_id,group_id,media_type,file_id)
+
+async def recent_browse_sessions():
+    """One-time startup recovery; do not periodically poll."""
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetch("""SELECT viewer_id,group_id,message_id,updated_at
+            FROM browse_sessions WHERE updated_at>now()-interval '5 minutes'
+              AND message_id IS NOT NULL LIMIT 500""")
