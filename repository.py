@@ -231,12 +231,19 @@ async def delete_profile(user_id, group_id):
                 ((sender_id=$1 AND sender_group_id=$2)
                  OR (recipient_id=$1 AND recipient_group_id=$2))
                 RETURNING sender_id,recipient_id""", user_id, group_id)
-            await c.execute("DELETE FROM browse_sessions WHERE viewer_id=$1 AND group_id=$2", user_id, group_id)
+            old_cards = await c.fetch("""DELETE FROM browse_sessions
+                WHERE (viewer_id=$1 AND group_id=$2)
+                  OR profile_keys @> jsonb_build_array(jsonb_build_array($1,$2))
+                RETURNING viewer_id,group_id,message_id""", user_id,group_id)
+            await c.execute("""DELETE FROM viewed_profiles
+                WHERE (viewer_id=$1 AND viewer_group_id=$2)
+                   OR (target_id=$1 AND target_group_id=$2)""",user_id,group_id)
             # A removed profile should not keep past cooldowns for its group.
             await c.execute("""DELETE FROM requests WHERE status<>'pending' AND
                 ((sender_id=$1 AND sender_group_id=$2)
                  OR (recipient_id=$1 AND recipient_group_id=$2))""",user_id,group_id)
-            return {"affected": [dict(row) for row in pending]}
+            return {"affected": [dict(row) for row in pending],
+                    "old_cards": [dict(row) for row in old_cards]}
 
 async def update_profile_media(user_id, group_id, media_type, file_id):
     if media_type not in ("photo","video"):
