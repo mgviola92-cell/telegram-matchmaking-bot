@@ -170,8 +170,12 @@ async def advance_browse_session(user_id, group_id, message_id, delta):
                 return None
             if (datetime.now(timezone.utc)-row["updated_at"]).total_seconds()>300:
                 return None
+            import json
+            keys = row["profile_keys"]
+            if isinstance(keys, str):
+                keys = json.loads(keys)
             pos = row["position"]+delta
-            if pos<0 or pos>=len(row["profile_keys"]):
+            if pos<0 or pos>=len(keys):
                 return row
             return await c.fetchrow("""UPDATE browse_sessions
                 SET position=$3,updated_at=now() WHERE viewer_id=$1 AND group_id=$2
