@@ -28,14 +28,14 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 - Sender confirms in source group; recipient gets sender's full profile card in the recipient profile's group, not unsolicited DM.
 - Recipient responds privately; accept/reject restricted to recipient.
 - Acceptance congratulates both groups (once if same group), then sends mutual Telegram contact links privately.
-- Rejection may include optional reason, only published with recipient's consent.
+- Rejection may include optional reason, only published with recipient's consent. Recipient-authorized optional reason entry, preview and share confirmation are coded; runtime E2E test pending.
 - Pending expires after 24h. Reject cooldown 12h; accept cooldown 24h. Decision-time cooldown queries are now coded, but integration tests pending. Unlimited distinct recipients; no duplicate active request to same recipient.
 - Unified private incoming inbox newest first; outgoing list and withdraw with confirmation. Atomic/idempotent transitions.
 
 ## Profile and group management — agreed, pending
 - `/profile` selects among group profiles; picker, public selection, display name/bio/media edits and confirmed deletion are coded, with runtime user testing still pending.
-- Delete removes profile and pending requests, disables old buttons where feasible, informs affected requesters privately; no group announcement; reset cooldown. Database deletion and sender notifications are coded; old message-button cleanup is incomplete.
-- Leaving group archives profile; rejoining restores.
+- Delete removes profile and pending requests, disables old buttons where feasible, informs affected requesters privately; no group announcement; reset cooldown. Database deletion and sender notifications are coded; stale browse-session deletion and best-effort old-button disable are implemented; Telegram may disallow editing older messages.
+- Leaving group archives profile; rejoining restores. Telegram chat-member update handler and webhook subscription are coded (requires Telegram delivery and adequate group permissions).
 - Per-group admin `/settings`: matchmaking, registration, requests, public browse, intros, cleanup toggles. No group-link settings. Toggle UI/storage is implemented; enforcement of registration, matchmaking, and outgoing requests is implemented. Public browse, intros and cleanup enforcement are pending.
 
 ## Infrastructure
@@ -47,6 +47,6 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 ## Current verified implementation snapshot
 - Registration and self-declaration: partial, in-memory conversation draft.
 - One-card match browse and request delivery: basic prototype, **not** full navigation. Private reply, accept/reject, inbox, outgoing, and confirmed withdrawal handlers are now present, but runtime integration remains unverified.
-- Dynamic responses: four families connected; all other bot copy pending.
-- PostgreSQL schema (including durable browse sessions), small lazy pool, webhook: present. See `DATABASE_SETUP.md`; a dedicated Neon project and four tables have been created, but no matchmaking Render service is connected or tested yet.
-- Offline source/response regression tests and GitHub Actions checks were added; their passing status is **not verified**. Runtime integration tests and Render deployment: **not yet verified**.
+- Dynamic responses: eight families (144 combinations each) are coded, including inbox/outgoing empty, rejection, profile save; other state copy still requires expansion.
+- PostgreSQL schema (including durable browse sessions), small lazy pool, webhook: present. See `DATABASE_SETUP.md`; a dedicated Neon project and five tables have been created; the matchmaking Render service is connected and latest deployments have been live, but real user E2E verification is pending.
+- Offline source/response regression tests and Docker build gates are present. Some Render builds have passed and deployed live; no complete Telegram end-to-end acceptance test has been confirmed.
