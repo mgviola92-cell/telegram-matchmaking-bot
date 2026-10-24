@@ -287,8 +287,23 @@ async def cancel(update, context):
     await update.message.reply_text("နောက်မှ ပြန်လုပ်လို့ရပါတယ်နော် 💗")
     return ConversationHandler.END
 
-async def show_profile(bot, chat_id, p, keyboard):
-    kw = {"caption": caption(p), "parse_mode": "HTML", "reply_markup": keyboard}
+def request_card_title(sender, recipient, request_id):
+    """Explicitly label both participants above the sender's media."""
+    from_name = html.escape(sender["display_name"])
+    to_name = html.escape(recipient["display_name"])
+    return (
+        f"💌 <b>မိတ်ဆက်ခွင့် တောင်းဆိုချက် #{request_id}</b>\n"
+        f"📤 <b>တောင်းဆိုသူ:</b> {from_name}\n"
+        f"📥 <b>လက်ခံမယ့်သူ:</b> {to_name}\n"
+        "────────────\n"
+        "👇 အောက်ပါ Profile က <b>တောင်းဆိုသူ</b> ရဲ့ ကတ်ပါ။\n\n"
+    )
+
+
+async def show_profile(bot, chat_id, p, keyboard, *, header="", reply_to_message_id=None):
+    kw = {"caption": header + caption(p), "parse_mode": "HTML", "reply_markup": keyboard}
+    if reply_to_message_id is not None:
+        kw["reply_to_message_id"] = reply_to_message_id
     if p["media_type"] == "video":
         return await bot.send_video(chat_id, p["media_file_id"], **kw)
     return await bot.send_photo(chat_id, p["media_file_id"], **kw)
@@ -450,7 +465,8 @@ async def ask_callback(update, context):
         await q.answer("🌷 ဒီ Group မှာ Request ပို့ခြင်းကို ခဏပိတ်ထားတယ်နော်။", show_alert=True)
         return
     await q.answer()
-    await q.message.reply_text("💌 ဒီမိတ်ဆက်ဖိတ်ခေါ်စာလေးကို တကယ်ပို့မလား?",
+    await q.message.reply_text(f"💌 <b>{html.escape(source['display_name'])}</b> က <b>{html.escape(target['display_name'])}</b> ဆီ ဖိတ်ခေါ်စာ ပို့မလား?",
+        parse_mode="HTML", reply_to_message_id=q.message.message_id,
         reply_markup=K([[B("💕 သေချာပို့မယ်",callback_data=f"ask_confirm:{invoker}:{source_group}:{target_user}:{target_group}")],
                         [B("🌷 မပို့တော့ဘူး",callback_data=f"ask_cancel:{invoker}:{source_group}:{target_user}:{target_group}")]]))
     return
@@ -505,7 +521,10 @@ async def ask_confirm_callback(update, context):
         pass
     try:
         await context.bot.send_message(source_group, say("request_sent", invoker))
-        await show_profile(context.bot, target_group, source, K([[B("💌 အဖြေပေးမယ်", callback_data=f"reply:{result['id']}:{target_user}")]]))
+        await show_profile(context.bot, target_group, source,
+            K([[B("💌 အဖြေပေးမယ်", callback_data=f"reply:{result['id']}:{target_user}")]]),
+            header=request_card_title(source,target,result["id"]),
+            reply_to_message_id=session["message_id"] if source_group == target_group else None)
     except TelegramError:
         logging.exception("Request group delivery failed; request persisted")
 
@@ -1018,7 +1037,8 @@ async def intro_view(update, context):
         await q.answer("မိတ်ဆက်ကတ်ပိုင်ရှင်ရဲ့ Profile မရှိတော့ဘူးနော်။",show_alert=True)
         return
     await q.answer()
-    await q.message.reply_text("💌 ဒီမိတ်ဆက်ကတ်ပိုင်ရှင်ဆီ ဖိတ်ခေါ်စာ တကယ်ပို့မလား?",
+    await q.message.reply_text(f"💌 <b>{html.escape(source['display_name'])}</b> က <b>{html.escape(target['display_name'])}</b> ဆီ မိတ်ဆက်ခွင့် တကယ်တောင်းမလား?",
+        parse_mode="HTML", reply_to_message_id=q.message.message_id,
         reply_markup=K([[B("💌 သေချာပို့မယ်",callback_data=f"intro_confirm:{sender_id}:{gid}:{target_id}")],
                         [B("🌷 မပို့တော့ဘူး",callback_data=f"intro_cancel:{sender_id}:{gid}:{target_id}")]]))
 
@@ -1062,7 +1082,9 @@ async def intro_confirm_callback(update, context):
     try:
         await context.bot.send_message(gid,say("request_sent",sender_id))
         await show_profile(context.bot,gid,source,
-            K([[B("💕 အဖြေပေးမယ်",callback_data=f"reply:{result['id']}:{target_id}")]]))
+            K([[B("💕 အဖြေပေးမယ်",callback_data=f"reply:{result['id']}:{target_id}")]]),
+            header=request_card_title(source,target,result["id"]),
+            reply_to_message_id=getattr(getattr(q.message,"reply_to_message",None),"message_id",None))
     except TelegramError:
         logging.exception("Intro request persisted but delivery failed")
 
