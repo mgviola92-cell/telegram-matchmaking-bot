@@ -23,13 +23,21 @@ async def _expire_browse(bot, uid, gid, message_id, delay):
             return
         elapsed = (datetime.now(timezone.utc)-session['updated_at']).total_seconds()
         if elapsed < 300:
-            return
+            # Avoid leaving an active card unexpired due to scheduling jitter.
+            await asyncio.sleep(300 - elapsed + 0.1)
+            session = await db.get_browse_session(uid,gid)
+            if not session or session['message_id'] != message_id:
+                return
+            if (datetime.now(timezone.utc)-session['updated_at']).total_seconds() < 300:
+                return
         try:
             await bot.edit_message_reply_markup(chat_id=gid,message_id=message_id,reply_markup=None)
         except TelegramError:
             logging.info('Browse card timeout: markup unavailable')
     except asyncio.CancelledError:
         return
+    except Exception:
+        logging.exception('Browse timeout could not finish')
     finally:
         key = (uid,gid)
         if _browse_timer_tasks.get(key) is asyncio.current_task():
