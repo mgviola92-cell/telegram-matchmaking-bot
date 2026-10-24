@@ -3,12 +3,10 @@
 ## Isolation
 Use a **new, dedicated Neon PostgreSQL project** for this bot. Never reuse
 `mudyar-game-db` or `card-catcher-db`, and never reuse another bot's Render
-service. As of 2026-10-24 there is no matchmaking service or PostgreSQL instance
-listed in the selected Render workspace. Provisioning is not yet performed.
+service. As of 2026-10-24 the user has created a Render **project** (which is not itself a web service). The Render connector lists no matchmaking web service; its service creation action has no project association field.
 
 ## Setup checklist
-1. Create a dedicated Neon PostgreSQL project, choosing free/low-cost capacity
-   after checking current provider limits and confirming account billing.
+1. **DONE:** Created dedicated Neon project `matchmaking-bot-db`, project ID `young-smoke-26864930`, database `matchmaking_bot`. Applied the current schema using a transaction; confirmed four tables: `profiles`, `requests`, `group_settings`, `browse_sessions`.
 2. Copy its PostgreSQL connection string from the Neon dashboard into the
    matchmaking Render web service environment as `DATABASE_URL`; do not commit
    secrets or paste credentials into source code.
@@ -38,6 +36,4 @@ listed in the selected Render workspace. Provisioning is not yet performed.
   the code does not guarantee a zero-cost month.
 
 ## Current status
-Schema and database query code are present in GitHub. **No new Neon project,
-connection string, Render service, or live database migration has been created
-by this task.** Production smoke tests are still outstanding.
+**Dedicated Neon database created and schema verified** on 2026-10-24. No DATABASE_URL has yet been set in a matchmaking Render service; the user's Render project exists, but the service is not listed by the connector. Do not create a service outside that project accidentally. Production smoke tests are outstanding.
