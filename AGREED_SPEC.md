@@ -52,9 +52,9 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 - PostgreSQL schema (including durable browse sessions), small lazy pool, webhook: present. See `DATABASE_SETUP.md`; a dedicated Neon project and five tables have been created; the matchmaking Render service is connected and latest deployments have been live, but real user E2E verification is pending.
 - Offline source/response regression tests and Docker build gates are present. Some Render builds have passed and deployed live; no complete Telegram end-to-end acceptance test has been confirmed.
 
-## Owner-only QA mode (off unless configured)
-- Render environment: OWNER_ID (owner's numeric Telegram user ID) and TEST_GROUP_ID (dedicated test supergroup ID).
-- `/owner` responds only in the owner's private bot chat; for others and in groups it is silent. It is not a group or administrator command.
-- QA reset requires an explicit button confirmation and deletes ONLY requests sent by OWNER_ID where sender and recipient are in TEST_GROUP_ID. It also best-effort removes matching bot group card/prompt messages. This permits repeated controlled tests without disabling general anti-duplicate and cooldown rules. Do not use a production group as TEST_GROUP_ID.
-- No built-in user-ID guesses, credentials, or automatically enabled bypasses.
-- Public group request cards now use a concise one-line `Sender → Recipient · #ID` header instead of long repeated explanation.
+## Owner-only QA mode (setup inside private bot chat)
+- Owner identity is established from trusted `owner_identity.py` (numeric Telegram ID) or legacy `OWNER_ID` fallback. Never auto-grant owner to the first user who presses /owner.
+- After owner identity is securely established, the first private `/owner` asks for a test Supergroup ID once, verifies owner is a group administrator and that the bot is a group member, and persists the selected group in Neon `owner_qa_settings`. Future /owner calls open the panel immediately; the owner can change group from the panel.
+- Non-owners and /owner in group chats are silent.
+- QA reset uses confirmation; deletes only owner-sent requests where both parties' profiles are in the selected test group, including prior accepted/rejected outcomes, so a NEW request can be sent and recipient can accept/reject again. Old request buttons remain invalid even if Telegram cannot delete the messages.
+- This is test-only; user-facing cooldown rules remain unchanged. Use a dedicated non-production test group.
