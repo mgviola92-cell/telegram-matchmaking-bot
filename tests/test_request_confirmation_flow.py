@@ -92,6 +92,14 @@ class RequestConfirmationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Target",args.kwargs["caption"])
         self.assertEqual(args.kwargs["parse_mode"],"HTML")
 
+    async def test_reply_button_prompt_references_request_card(self):
+        update = fake_update("reply:123:11",user_id=11,message_id=55)
+        bot=SimpleNamespace(get_me=AsyncMock(return_value=SimpleNamespace(username="example_bot")))
+        await handlers.reply_callback(update,SimpleNamespace(bot=bot))
+        msg=update.callback_query.message
+        self.assertEqual(msg.reply_text.await_args.kwargs["reply_to_message_id"],55)
+        self.assertIn("reply_123",str(msg.reply_text.await_args))
+
     async def test_other_user_cannot_confirm(self):
         update = fake_update("ask_confirm:11:-1007:22:-1007",user_id=99)
         ctx = SimpleNamespace(bot=MagicMock())
