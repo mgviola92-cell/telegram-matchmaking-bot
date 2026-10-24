@@ -33,10 +33,10 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 - Unified private incoming inbox newest first; outgoing list and withdraw with confirmation. Atomic/idempotent transitions.
 
 ## Profile and group management — agreed, pending
-- `/profile` selects among group profiles; edit, delete, and public selection.
+- `/profile` selects among group profiles; picker and public selection are implemented in code. Editing and deletion are pending.
 - Delete removes profile and pending requests, disables old buttons where feasible, informs affected requesters privately; no group announcement; reset cooldown.
 - Leaving group archives profile; rejoining restores.
-- Per-group admin `/settings`: matchmaking, registration, requests, public browse, intros, cleanup toggles. No group-link settings.
+- Per-group admin `/settings`: matchmaking, registration, requests, public browse, intros, cleanup toggles. No group-link settings. Toggle UI/storage is implemented; enforcement of registration, matchmaking, and outgoing requests is implemented. Public browse, intros and cleanup enforcement are pending.
 
 ## Infrastructure
 - On-demand SQL, no high-frequency polling, lazy small PostgreSQL pool, proper indexes and durable state for sessions.
@@ -49,4 +49,4 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 - One-card match browse and request delivery: basic prototype, **not** full navigation. Private reply, accept/reject, inbox, outgoing, and confirmed withdrawal handlers are now present, but runtime integration remains unverified.
 - Dynamic responses: four families connected; all other bot copy pending.
 - PostgreSQL schema, small lazy pool, webhook: present.
-- Offline source/response regression tests were added, but have **not been executed**. Runtime integration tests and Render deployment: **not yet verified**.
+- Offline source/response regression tests and GitHub Actions checks were added; their passing status is **not verified**. Runtime integration tests and Render deployment: **not yet verified**.
