@@ -95,7 +95,7 @@ async def media_step(update, context):
     msg = update.message
     if msg.photo:
         kind, file_id = "photo", msg.photo[-1].file_id
-    elif msg.video and msg.video.duration <= 30:
+    elif msg.video and msg.video.duration is not None and msg.video.duration <= 30:
         kind, file_id = "video", msg.video.file_id
     else:
         await msg.reply_text("ဓာတ်ပုံတစ်ပုံ ဒါမှမဟုတ် စက္ကန့် ၃၀ အောက် Video လေး ပို့ပေးနော်။")
@@ -108,17 +108,20 @@ async def media_step(update, context):
     return BIO
 
 async def bio_step(update, context):
-    d = drafts.pop(update.effective_user.id, None)
+    d = drafts.get(update.effective_user.id)
     if not d:
         return ConversationHandler.END
     if not await member(context.bot, d["group_id"], update.effective_user.id):
+        drafts.pop(update.effective_user.id, None)
         await update.message.reply_text("Group ထဲမှာ မရှိတော့လို့ Profile မသိမ်းထားဘူးနော်။")
         return ConversationHandler.END
     if not d.get("adult_confirmed") or d.get("age", 0) < 18:
+        drafts.pop(update.effective_user.id, None)
         await update.message.reply_text("💌 /register နဲ့ ပြန်စလိုက်နော်။")
         return ConversationHandler.END
     bio = "" if update.message.text == "/skip" else update.message.text[:300]
     await db.upsert_profile(update.effective_user.id, d["group_id"], d["name"], d["age"], d["media_type"], d["file_id"], bio)
+    drafts.pop(update.effective_user.id, None)
     await update.message.reply_text("💖 Profile လေး သိမ်းပြီးပြီ။ Group ထဲမှာ /match နဲ့ စလှည့်ကြည့်လို့ရပြီနော်။")
     return ConversationHandler.END
 
