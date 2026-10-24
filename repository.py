@@ -50,6 +50,15 @@ async def send_request(sender_id, sender_group_id, recipient_id, recipient_group
               AND status='pending' AND expires_at>now() LIMIT 1""",sender_id,recipient_id)
             if exists:
                 return None
+            # 12h after rejection, 24h after acceptance; withdrawn/expired pending
+            # invitations never impose a cooldown.
+            cooldown = await c.fetchval("""SELECT 1 FROM requests
+                WHERE sender_id=$1 AND recipient_id=$2
+                  AND ((status='rejected' AND created_at>now()-interval '12 hours')
+                    OR (status='accepted' AND created_at>now()-interval '24 hours'))
+                LIMIT 1""", sender_id, recipient_id)
+            if cooldown:
+                return None
             return await c.fetchrow("""INSERT INTO requests(sender_id,sender_group_id,recipient_id,recipient_group_id)
               VALUES($1,$2,$3,$4) RETURNING *""",sender_id,sender_group_id,recipient_id,recipient_group_id)
 
