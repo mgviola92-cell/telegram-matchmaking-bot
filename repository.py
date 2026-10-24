@@ -112,3 +112,21 @@ async def update_profile_text(user_id, group_id, field, value):
         return await c.fetchrow(
             f"UPDATE profiles SET {columns[field]}=$3 WHERE user_id=$1 AND group_id=$2 AND NOT archived RETURNING *",
             user_id, group_id, value)
+
+SETTING_NAMES = ("matchmaking", "registration", "requests", "public_browse", "intros", "cleanup")
+
+async def group_settings(group_id):
+    p = await pool()
+    async with p.acquire() as c:
+        row = await c.fetchrow("SELECT * FROM group_settings WHERE group_id=$1", group_id)
+        return dict(row) if row else {"group_id": group_id, **{name: True for name in SETTING_NAMES}}
+
+async def set_group_setting(group_id, name, enabled):
+    if name not in SETTING_NAMES:
+        raise ValueError("Unknown group setting")
+    p = await pool()
+    async with p.acquire() as c:
+        return await c.fetchrow(
+            f"""INSERT INTO group_settings(group_id,{name}) VALUES($1,$2)
+                ON CONFLICT(group_id) DO UPDATE SET {name}=excluded.{name} RETURNING *""",
+            group_id, enabled)
