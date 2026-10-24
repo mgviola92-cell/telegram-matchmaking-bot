@@ -70,7 +70,9 @@ def caption(p):
 async def member(bot, group_id, user_id):
     try:
         m = await bot.get_chat_member(group_id, user_id)
-        return m.status not in ("left", "kicked")
+        if m.status == "restricted":
+            return bool(m.is_member)
+        return m.status in ("member", "administrator", "creator")
     except TelegramError:
         return False
 
