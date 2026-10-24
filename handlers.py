@@ -779,6 +779,18 @@ async def profile_delete_do(update, context):
         return
     await q.answer("Profile ဖျက်ပြီးပြီ")
     await q.edit_message_text("🌷 ဒီ Group အတွက် Profile ကို ဖျက်ပြီးပါပြီ။")
+    for card in result.get("old_cards", []):
+        if card["message_id"] is None:
+            continue
+        key = (card["viewer_id"], card["group_id"])
+        timer = _browse_timer_tasks.pop(key,None)
+        if timer and not timer.done():
+            timer.cancel()
+        try:
+            await context.bot.edit_message_reply_markup(
+                chat_id=card["group_id"],message_id=card["message_id"],reply_markup=None)
+        except TelegramError:
+            logging.info("Old browse card not editable after deletion")
     affected = {r["sender_id"] for r in result["affected"] if r["sender_id"] != q.from_user.id}
     for uid in affected:
         try:
