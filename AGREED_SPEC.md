@@ -51,3 +51,10 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 - Dynamic responses: fourteen families (144 combinations each) are coded; handlers for saved/updated/deleted profiles, accepted/rejected/withdrawn requests, intro publish, active browse session and other core events use them. Remaining edge-case validation/error messages are fixed copy.
 - PostgreSQL schema (including durable browse sessions), small lazy pool, webhook: present. See `DATABASE_SETUP.md`; a dedicated Neon project and five tables have been created; the matchmaking Render service is connected and latest deployments have been live, but real user E2E verification is pending.
 - Offline source/response regression tests and Docker build gates are present. Some Render builds have passed and deployed live; no complete Telegram end-to-end acceptance test has been confirmed.
+
+## Owner-only QA mode (off unless configured)
+- Render environment: OWNER_ID (owner's numeric Telegram user ID) and TEST_GROUP_ID (dedicated test supergroup ID).
+- `/owner` responds only in the owner's private bot chat; for others and in groups it is silent. It is not a group or administrator command.
+- QA reset requires an explicit button confirmation and deletes ONLY requests sent by OWNER_ID where sender and recipient are in TEST_GROUP_ID. It also best-effort removes matching bot group card/prompt messages. This permits repeated controlled tests without disabling general anti-duplicate and cooldown rules. Do not use a production group as TEST_GROUP_ID.
+- No built-in user-ID guesses, credentials, or automatically enabled bypasses.
+- Public group request cards now use a concise one-line `Sender → Recipient · #ID` header instead of long repeated explanation.
