@@ -520,7 +520,6 @@ async def ask_confirm_callback(update, context):
     except TelegramError:
         pass
     try:
-        await context.bot.send_message(source_group, say("request_sent", invoker))
         await show_profile(context.bot, target_group, source,
             K([[B("💌 အဖြေပေးမယ်", callback_data=f"reply:{result['id']}:{target_user}")]]),
             header=request_card_title(source,target,result["id"]),
@@ -541,7 +540,9 @@ async def reply_callback(update, context):
         return
     me = await context.bot.get_me()
     await q.answer()
-    await q.message.reply_text("💌 အဖြေပေးဖို့ Private Chat ထဲ ဝင်ခဲ့နော်။", reply_markup=K([[B("💗 အဖြေပေးမယ်", url=f"https://t.me/{me.username}?start=reply_{request_id}")]]))
+    await q.message.reply_text("💌 ဒီ Request ကို Private Chat မှာ အဖြေပေးနိုင်တယ်နော်။",
+        reply_to_message_id=q.message.message_id,
+        reply_markup=K([[B("💗 Private မှာ အဖြေပေးမယ်", url=f"https://t.me/{me.username}?start=reply_{request_id}")]]))
 
 async def decide_callback(update, context):
     q = update.callback_query
@@ -1080,7 +1081,6 @@ async def intro_confirm_callback(update, context):
     except TelegramError:
         pass
     try:
-        await context.bot.send_message(gid,say("request_sent",sender_id))
         await show_profile(context.bot,gid,source,
             K([[B("💕 အဖြေပေးမယ်",callback_data=f"reply:{result['id']}:{target_id}")]]),
             header=request_card_title(source,target,result["id"]),
