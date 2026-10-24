@@ -26,6 +26,24 @@ async def start(update, context):
         await msg.reply_text(say("welcome", update.effective_user.id))
         return
     args = context.args
+    if args and args[0].startswith("reply_"):
+        try:
+            rid = int(args[0][6:])
+        except ValueError:
+            await msg.reply_text("💌 ဒီအချစ်စာလေး ဖွင့်လို့မရတော့ဘူးနော်။")
+            return ConversationHandler.END
+        req = await db.pending_request_for_recipient(rid, update.effective_user.id)
+        if not req:
+            await msg.reply_text("🌷 ဒီအချစ်စာလေးက အဖြေပြီးသွားတာ ဒါမှမဟုတ် သက်တမ်းကုန်သွားတာ ဖြစ်နိုင်တယ်။")
+            return ConversationHandler.END
+        sender = await db.get_profile(req["sender_id"], req["sender_group_id"])
+        if not sender:
+            await msg.reply_text("💌 မိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။")
+            return ConversationHandler.END
+        keyboard = K([[B("💕 လက်ခံမယ်", callback_data=f"decide:{rid}:accepted")],
+                      [B("💔 ငြင်းမယ်", callback_data=f"decide:{rid}:rejected")]])
+        await show_profile(context.bot, update.effective_chat.id, sender, keyboard)
+        return ConversationHandler.END
     if args and args[0].startswith("join_"):
         try:
             gid = int(args[0][5:])
@@ -200,6 +218,51 @@ async def reply_callback(update, context):
     await q.answer()
     await q.message.reply_text("💌 အဖြေပေးဖို့ Private Chat ထဲ ဝင်ခဲ့နော်။", reply_markup=K([[B("💗 အဖြေပေးမယ်", url=f"https://t.me/{me.username}?start=reply_{request_id}")]]))
 
+async def decide_callback(update, context):
+    q = update.callback_query
+    try:
+        _, request_id, action = q.data.split(":")
+        request_id = int(request_id)
+    except (AttributeError, ValueError):
+        await q.answer("ခလုတ်လေး အဆင်မပြေတော့ဘူး။", show_alert=True)
+        return
+    if action not in ("accepted", "rejected") or q.message.chat.type != "private":
+        await q.answer("ဒီနေရာကနေ အဖြေပေးလို့မရဘူးနော်။", show_alert=True)
+        return
+    result = await db.resolve_request(request_id, q.from_user.id, action)
+    if not result:
+        await q.answer("ဒီအချစ်စာလေးကို အဖြေပေးပြီးသား ဖြစ်နိုင်ပါတယ်။", show_alert=True)
+        return
+    await q.answer("အဖြေလေး သိမ်းထားပြီ 💗")
+    try:
+        await q.edit_message_reply_markup(reply_markup=None)
+    except TelegramError:
+        logging.exception("Could not disable answered request buttons")
+    sender_id, recipient_id = result["sender_id"], result["recipient_id"]
+    if action == "rejected":
+        await q.message.reply_text("🌷 ဒီတစ်ခေါက်တော့ မိတ်ဆက်ခွင့်လေးကို ငြင်းလိုက်ပြီနော်။")
+        try:
+            await context.bot.send_message(sender_id, "💌 ပို့ထားတဲ့ မိတ်ဆက်ဖိတ်ခေါ်ချက်လေးကို တစ်ဖက်က လက်မခံခဲ့ဘူးနော်။")
+        except TelegramError:
+            logging.info("Sender private chat unavailable for rejection notice")
+        return
+    a = f'<a href="tg://user?id={sender_id}">မိတ်ဆက်ဖိတ်ခေါ်သူ</a>'
+    b = f'<a href="tg://user?id={recipient_id}">လက်ခံသူ</a>'
+    announcement = f"💕 <b>လူတောင်းပွဲမှာ ဆုံတွေ့မှုလေးတစ်ခု ဖြစ်သွားပြီ!</b>\\n{a} နဲ့ {b} တို့ မိတ်ဆက်ခွင့်ရသွားပြီနော် 💌"
+    for gid in {result["sender_group_id"], result["recipient_group_id"]}:
+        try:
+            await context.bot.send_message(gid, announcement, parse_mode="HTML")
+        except TelegramError:
+            logging.info("Group announcement could not be delivered")
+    for user_id, other_id in ((sender_id, recipient_id), (recipient_id, sender_id)):
+        try:
+            await context.bot.send_message(
+                user_id,
+                f'💗 နှစ်ဖက်လုံး သဘောတူပြီးပြီနော်။ <a href="tg://user?id={other_id}">ဒီမှာ မိတ်ဆက်စကား စပြောနိုင်ပြီ 💌</a>',
+                parse_mode="HTML")
+        except TelegramError:
+            logging.info("Private contact notice could not be delivered")
+
 def handlers():
     registration = ConversationHandler(
         entry_points=[CommandHandler("start", start, filters.ChatType.PRIVATE)],
@@ -214,4 +277,5 @@ def handlers():
         allow_reentry=True,
     )
     return [registration, CommandHandler("register", register), CommandHandler("match", match),
-            CallbackQueryHandler(ask_callback, pattern=r"^ask:"), CallbackQueryHandler(reply_callback, pattern=r"^reply:")]
+            CallbackQueryHandler(ask_callback, pattern=r"^ask:"), CallbackQueryHandler(reply_callback, pattern=r"^reply:"),
+            CallbackQueryHandler(decide_callback, pattern=r"^decide:")]
