@@ -370,16 +370,60 @@ async def ask_callback(update, context):
     if not (await db.group_settings(source_group))["requests"]:
         await q.answer("🌷 ဒီ Group မှာ Request ပို့ခြင်းကို ခဏပိတ်ထားတယ်နော်။", show_alert=True)
         return
-    touched = await db.touch_browse_session(invoker,source_group,q.message.message_id)
+    await q.answer()
+    await q.message.reply_text("💌 ဒီမိတ်ဆက်ဖိတ်ခေါ်စာလေးကို တကယ်ပို့မလား?",
+        reply_markup=K([[B("💕 သေချာပို့မယ်",callback_data=f"ask_confirm:{invoker}:{source_group}:{target_user}:{target_group}")],
+                        [B("🌷 မပို့တော့ဘူး",callback_data="ask_cancel")]]))
+    return
+
+async def ask_confirm_callback(update, context):
+    q = update.callback_query
+    if q.data == "ask_cancel":
+        await q.answer()
+        await q.edit_message_text("🌷 ဖိတ်ခေါ်စာလေး မပို့တော့ဘူးနော်။")
+        return
+    try:
+        _, invoker, source_group, target_user, target_group = q.data.split(":")
+        invoker, source_group, target_user, target_group = map(int,(invoker,source_group,target_user,target_group))
+    except (AttributeError,ValueError):
+        await q.answer("ခလုတ်လေး အဆင်မပြေတော့ဘူး။",show_alert=True)
+        return
+    if q.from_user.id != invoker or q.message.chat.id != source_group:
+        await q.answer("ဖိတ်ခေါ်စာပိုင်ရှင်ပဲ အတည်ပြုနိုင်တယ်နော်။",show_alert=True)
+        return
+    session = await db.active_browse_session(invoker,source_group)
+    if not session:
+        await q.answer("မိတ်ဆက်ကတ်လေး သက်တမ်းကုန်သွားပြီနော်။",show_alert=True)
+        return
+    keys = session["profile_keys"]
+    if isinstance(keys,str):
+        keys = json.loads(keys)
+    if (not keys or [target_user,target_group] != keys[session["position"]]
+            or not (await db.group_settings(source_group))["requests"]):
+        await q.answer("မိတ်ဆက်ကတ်လေး ပြောင်းသွားပြီနော်။",show_alert=True)
+        return
+    if not await member(context.bot,source_group,invoker) or not await member(context.bot,target_group,target_user):
+        await q.answer("Group အဖွဲ့ဝင်အခြေအနေ ပြောင်းသွားပြီနော်။",show_alert=True)
+        return
+    source = await db.get_profile(invoker,source_group)
+    target = await db.get_profile(target_user,target_group)
+    if not source or not target:
+        await q.answer("Profile လေး မရှိတော့ဘူးနော်။",show_alert=True)
+        return
+    touched = await db.touch_browse_session(invoker,source_group,session["message_id"])
     if not touched:
         await q.answer("ဒီမိတ်ဆက်ကတ်လေး သက်တမ်းကုန်သွားပြီနော်။",show_alert=True)
         return
-    schedule_browse_timeout(context.bot,invoker,source_group,q.message.message_id)
+    schedule_browse_timeout(context.bot,invoker,source_group,session["message_id"])
     result = await db.send_request(invoker, source_group, target_user, target_group)
     if not result:
         await q.answer("အချစ်စာလေး ပို့ထားပြီးသား ဖြစ်နိုင်ပါတယ် 💌", show_alert=True)
         return
     await q.answer("အချစ်စာလေး ပို့လိုက်ပြီ 💌")
+    try:
+        await q.edit_message_reply_markup(reply_markup=None)
+    except TelegramError:
+        pass
     try:
         await context.bot.send_message(source_group, say("request_sent", invoker))
         await show_profile(context.bot, target_group, source, K([[B("💌 အဖြေပေးမယ်", callback_data=f"reply:{result['id']}:{target_user}")]]))
@@ -887,7 +931,8 @@ def handlers():
     return [registration, profile_editor, CommandHandler("register", register), CommandHandler("match", match),
             CallbackQueryHandler(browse_callback, pattern=r"^browse:"),
             CallbackQueryHandler(browse_mode_callback, pattern=r"^browse_mode:"),
-            CallbackQueryHandler(ask_callback, pattern=r"^ask:"), CallbackQueryHandler(reply_callback, pattern=r"^reply:"),
+            CallbackQueryHandler(ask_callback, pattern=r"^ask:"),
+            CallbackQueryHandler(ask_confirm_callback, pattern=r"^ask_(confirm:|cancel$)"), CallbackQueryHandler(reply_callback, pattern=r"^reply:"),
             CallbackQueryHandler(decide_callback, pattern=r"^decide:"),
             CommandHandler("inbox", inbox), CommandHandler("outgoing", outgoing),
             CommandHandler("profile", profile), CommandHandler("settings", settings),
