@@ -31,6 +31,9 @@ async def _expire_browse(bot, uid, gid, message_id, delay):
                 return
             if (datetime.now(timezone.utc)-session['updated_at']).total_seconds() < 300:
                 return
+        settings = await db.group_settings(gid)
+        if not settings["cleanup"]:
+            return
         try:
             await bot.edit_message_reply_markup(chat_id=gid,message_id=message_id,reply_markup=None)
         except TelegramError:
