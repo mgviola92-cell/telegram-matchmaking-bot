@@ -263,6 +263,110 @@ async def decide_callback(update, context):
         except TelegramError:
             logging.info("Private contact notice could not be delivered")
 
+
+async def inbox(update, context):
+    """Private, unified newest-first incoming requests; no polling."""
+    if update.effective_chat.type != "private":
+        await update.message.reply_text("💌 အချစ်စာဝင်ပုံးကို Private Chat မှာ ဖွင့်ကြည့်ပေးနော်။")
+        return
+    items = await db.incoming_requests(update.effective_user.id)
+    if not items:
+        await update.message.reply_text("🌷 အခုအချိန်မှာ အဖြေစောင့်နေတဲ့ အချစ်စာလေး မရှိသေးဘူးနော်။")
+        return
+    buttons = []
+    for row in items[:30]:
+        sender = await db.get_profile(row["sender_id"], row["sender_group_id"])
+        if sender:
+            title = sender["display_name"][:25]
+            buttons.append([B(f"💌 {title}", callback_data=f"inbox_open:{row['id']}")])
+    if not buttons:
+        await update.message.reply_text("🌷 ဖွင့်ကြည့်လို့ရတဲ့ အချစ်စာလေး မရှိတော့ဘူးနော်။")
+        return
+    await update.message.reply_text(
+        f"💌 <b>ဝင်လာတဲ့ အချစ်စာလေးများ</b>\\nအဖြေစောင့်နေတဲ့ စာ {len(items)} စောင် ရှိတယ်နော်။",
+        parse_mode="HTML", reply_markup=K(buttons))
+
+async def inbox_open(update, context):
+    q = update.callback_query
+    try:
+        request_id = int(q.data.split(":", 1)[1])
+    except (ValueError, AttributeError):
+        await q.answer("စာလေး ဖွင့်လို့မရတော့ဘူးနော်။", show_alert=True)
+        return
+    if q.message.chat.type != "private":
+        await q.answer("Private Chat မှာပဲ ဖွင့်ပေးနော်။", show_alert=True)
+        return
+    req = await db.pending_request_for_recipient(request_id, q.from_user.id)
+    if not req:
+        await q.answer("ဒီစာလေး သက်တမ်းကုန်သွားပြီ ဒါမှမဟုတ် အဖြေပြီးပြီနော်။", show_alert=True)
+        return
+    sender = await db.get_profile(req["sender_id"], req["sender_group_id"])
+    if not sender:
+        await q.answer("Profile လေး မရှိတော့ဘူးနော်။", show_alert=True)
+        return
+    await q.answer()
+    await show_profile(context.bot, q.from_user.id, sender,
+        K([[B("💕 လက်ခံမယ်", callback_data=f"decide:{request_id}:accepted")],
+           [B("💔 ငြင်းမယ်", callback_data=f"decide:{request_id}:rejected")]]))
+
+async def outgoing(update, context):
+    if update.effective_chat.type != "private":
+        await update.message.reply_text("💌 ပို့ထားတဲ့ စာလေးတွေကို Private Chat မှာ ကြည့်ပေးနော်။")
+        return
+    items = await db.outgoing_requests(update.effective_user.id)
+    if not items:
+        await update.message.reply_text("💗 လောလောဆယ် အဖြေစောင့်နေတဲ့ ဖိတ်ခေါ်စာ မရှိသေးဘူးနော်။")
+        return
+    buttons = []
+    for row in items[:30]:
+        target = await db.get_profile(row["recipient_id"], row["recipient_group_id"])
+        if target:
+            buttons.append([B(f"💌 {target['display_name'][:25]} · ပြန်ရုပ်သိမ်းမယ်",
+                              callback_data=f"withdraw_ask:{row['id']}")])
+    await update.message.reply_text(
+        f"💌 <b>ပို့ထားတဲ့ ဖိတ်ခေါ်စာများ</b>\\nအဖြေစောင့်နေတဲ့ စာ {len(items)} စောင် ရှိတယ်နော်။",
+        parse_mode="HTML", reply_markup=K(buttons) if buttons else None)
+
+async def withdraw_ask(update, context):
+    q = update.callback_query
+    if q.message.chat.type != "private":
+        await q.answer("Private Chat မှာပဲ လုပ်ပေးနော်။", show_alert=True)
+        return
+    try:
+        rid = int(q.data.split(":", 1)[1])
+    except (ValueError, AttributeError):
+        await q.answer("ဒီခလုတ်လေး အဆင်မပြေတော့ဘူးနော်။", show_alert=True)
+        return
+    owned = await db.outgoing_requests(q.from_user.id)
+    if not any(row["id"] == rid for row in owned):
+        await q.answer("ဒီစာလေး အဖြေပြီးသွားတာ ဒါမှမဟုတ် သက်တမ်းကုန်သွားပြီ။", show_alert=True)
+        return
+    await q.answer()
+    await q.message.reply_text("💌 ဒီဖိတ်ခေါ်စာလေးကို တကယ် ပြန်ရုပ်သိမ်းမလား?",
+        reply_markup=K([[B("💔 ပြန်ရုပ်သိမ်းမယ်", callback_data=f"withdraw_do:{rid}")],
+                        [B("🌷 မရုပ်သိမ်းတော့ဘူး", callback_data="withdraw_cancel")]]))
+
+async def withdraw_do(update, context):
+    q = update.callback_query
+    if q.message.chat.type != "private":
+        await q.answer("Private Chat မှာပဲ လုပ်ပေးနော်။", show_alert=True)
+        return
+    if q.data == "withdraw_cancel":
+        await q.answer()
+        await q.edit_message_text("💗 ဒီစာလေးကို ဆက်စောင့်ကြည့်လို့ရတယ်နော်။")
+        return
+    try:
+        rid = int(q.data.split(":", 1)[1])
+    except (ValueError, AttributeError):
+        await q.answer("ခလုတ်လေး မမှန်တော့ဘူးနော်။", show_alert=True)
+        return
+    result = await db.withdraw_request(rid, q.from_user.id)
+    if not result:
+        await q.answer("ဒီစာလေးကို ပြန်ရုပ်သိမ်းလို့ မရတော့ဘူးနော်။", show_alert=True)
+        return
+    await q.answer("ပြန်ရုပ်သိမ်းပြီးပြီ 💗")
+    await q.edit_message_text("🌷 ဖိတ်ခေါ်စာလေးကို ပြန်ရုပ်သိမ်းပြီးပါပြီ။")
+
 def handlers():
     registration = ConversationHandler(
         entry_points=[CommandHandler("start", start, filters.ChatType.PRIVATE)],
@@ -278,4 +382,8 @@ def handlers():
     )
     return [registration, CommandHandler("register", register), CommandHandler("match", match),
             CallbackQueryHandler(ask_callback, pattern=r"^ask:"), CallbackQueryHandler(reply_callback, pattern=r"^reply:"),
-            CallbackQueryHandler(decide_callback, pattern=r"^decide:")]
+            CallbackQueryHandler(decide_callback, pattern=r"^decide:"),
+            CommandHandler("inbox", inbox), CommandHandler("outgoing", outgoing),
+            CallbackQueryHandler(inbox_open, pattern=r"^inbox_open:"),
+            CallbackQueryHandler(withdraw_ask, pattern=r"^withdraw_ask:"),
+            CallbackQueryHandler(withdraw_do, pattern=r"^withdraw_(do:|cancel$)")]
