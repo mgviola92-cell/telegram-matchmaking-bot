@@ -675,6 +675,10 @@ async def inbox_open(update, context):
         await q.answer("Profile လေး မရှိတော့ဘူးနော်။", show_alert=True)
         return
     await q.answer()
+    try:
+        await q.message.delete()
+    except TelegramError:
+        logging.info("Inbox picker could not be deleted")
     await show_profile(context.bot, q.from_user.id, sender,
         K([[B("💕 လက်ခံမယ်", callback_data=f"decide:{request_id}:accepted")],
            [B("💔 ငြင်းမယ်", callback_data=f"decide:{request_id}:rejected")]]))
@@ -712,7 +716,7 @@ async def withdraw_ask(update, context):
         await q.answer("ဒီစာလေး အဖြေပြီးသွားတာ ဒါမှမဟုတ် သက်တမ်းကုန်သွားပြီ။", show_alert=True)
         return
     await q.answer()
-    await q.message.reply_text("💌 ဒီဖိတ်ခေါ်စာလေးကို တကယ် ပြန်ရုပ်သိမ်းမလား?",
+    await show_menu_page(q, "💌 ဒီဖိတ်ခေါ်စာလေးကို တကယ် ပြန်ရုပ်သိမ်းမလား?",
         reply_markup=K([[B("💔 ပြန်ရုပ်သိမ်းမယ်", callback_data=f"withdraw_do:{rid}")],
                         [B("🌷 မရုပ်သိမ်းတော့ဘူး", callback_data="withdraw_cancel")]]))
 
@@ -898,7 +902,7 @@ async def profile_delete_ask(update, context):
         await q.answer("Profile လေး မရှိတော့ဘူးနော်။",show_alert=True)
         return
     await q.answer()
-    await q.message.reply_text("🗑 ဒီ Group အတွက် Profile လေးကို တကယ်ဖျက်မလား? ဖျက်ပြီးရင် ပြန်ယူလို့မရဘူးနော်။",
+    await q.edit_message_caption(caption="🗑 ဒီ Group အတွက် Profile လေးကို တကယ်ဖျက်မလား? ဖျက်ပြီးရင် ပြန်ယူလို့မရဘူးနော်။",
         reply_markup=K([[B("🗑 သေချာဖျက်မယ်",callback_data=f"profile_delete_do:{gid}")],
                         [B("🌷 မဖျက်တော့ဘူး",callback_data="profile_delete_cancel")]]))
 
@@ -909,7 +913,7 @@ async def profile_delete_do(update, context):
         return
     if q.data == "profile_delete_cancel":
         await q.answer()
-        await q.edit_message_text("💗 Profile လေးကို ဆက်သိမ်းထားမယ်နော်။")
+        await q.edit_message_caption(caption="💗 Profile လေးကို ဆက်သိမ်းထားမယ်နော်။",reply_markup=None)
         return
     try:
         gid = int(q.data.split(":",1)[1])
@@ -921,7 +925,7 @@ async def profile_delete_do(update, context):
         await q.answer("Profile လေး မရှိတော့ဘူးနော်။",show_alert=True)
         return
     await q.answer("Profile ဖျက်ပြီးပြီ")
-    await q.edit_message_text(say("profile_deleted",q.from_user.id))
+    await q.edit_message_caption(caption=say("profile_deleted",q.from_user.id),reply_markup=None)
     for card in result.get("old_cards", []):
         if card["message_id"] is None:
             continue
