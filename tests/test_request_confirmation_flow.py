@@ -52,6 +52,24 @@ class RequestConfirmationTests(unittest.IsolatedAsyncioTestCase):
         await handlers.ask_confirm_callback(update,SimpleNamespace(bot=MagicMock()))
         update.callback_query.edit_message_text.assert_awaited_once()
 
+    async def test_intro_request_first_tap_asks_for_confirmation(self):
+        update = fake_update("intro_view:22:-1007",user_id=11)
+        ctx = SimpleNamespace(bot=MagicMock())
+        with patch.object(handlers.db,"group_settings",AsyncMock(return_value={"requests":True,"intros":True})), \
+             patch.object(handlers,"member",AsyncMock(return_value=True)), \
+             patch.object(handlers.db,"get_profile",AsyncMock(return_value={"display_name":"Tester"})), \
+             patch.object(handlers.db,"send_request",AsyncMock()) as send:
+            await handlers.intro_view(update,ctx)
+        send.assert_not_awaited()
+        self.assertIn("intro_confirm:",str(update.callback_query.message.reply_text.await_args))
+
+    async def test_other_user_cannot_approve_intro_request(self):
+        update = fake_update("intro_confirm:11:-1007:22",user_id=99)
+        ctx = SimpleNamespace(bot=MagicMock())
+        with patch.object(handlers.db,"send_request",AsyncMock()) as send:
+            await handlers.intro_confirm_callback(update,ctx)
+        send.assert_not_awaited()
+
     async def test_other_user_cannot_confirm(self):
         update = fake_update("ask_confirm:11:-1007:22:-1007",user_id=99)
         ctx = SimpleNamespace(bot=MagicMock())
