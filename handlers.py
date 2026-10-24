@@ -745,6 +745,16 @@ async def profile(update, context):
         f"💗 <b>ကိုယ့် Profile လေးများ</b>\nProfile {len(rows)} ခု ရှိတယ်နော်။ 🌍 ဆိုတာ Public ဖွင့်ထားတဲ့ Profile ပါ။",
         parse_mode="HTML", reply_markup=K(buttons))
 
+def profile_actions(group_id, public):
+    toggle = B("🌷 Public ပိတ်မယ်" if public else "🌍 Public ဖွင့်မယ်",
+               callback_data=f"profile_public:{group_id}:{0 if public else 1}")
+    return K([[toggle],
+              [B("✏️ နာမည်ပြင်မယ်", callback_data=f"profile_edit:{group_id}:display_name"),
+               B("💬 Bio ပြင်မယ်", callback_data=f"profile_edit:{group_id}:bio")],
+              [B("📸 ပုံ/Video ပြင်မယ်", callback_data=f"profile_edit:{group_id}:media")],
+              [B("🗑 Profile ဖျက်မယ်", callback_data=f"profile_delete_ask:{group_id}")],
+              [B("💗 ပင်မစာမျက်နှာ", callback_data="home:main")]])
+
 async def profile_view(update, context):
     q = update.callback_query
     if q.message.chat.type != "private":
@@ -760,14 +770,7 @@ async def profile_view(update, context):
         await q.answer("Profile လေး မရှိတော့ဘူးနော်။", show_alert=True)
         return
     await q.answer()
-    public = bool(p["is_public"])
-    toggle = B("🌷 Public ပိတ်မယ်" if public else "🌍 Public ဖွင့်မယ်",
-               callback_data=f"profile_public:{group_id}:{0 if public else 1}")
-    actions = K([[toggle],
-                 [B("✏️ နာမည်ပြင်မယ်", callback_data=f"profile_edit:{group_id}:display_name"),
-                  B("💬 Bio ပြင်မယ်", callback_data=f"profile_edit:{group_id}:bio")],
-                 [B("📸 ပုံ/Video ပြင်မယ်", callback_data=f"profile_edit:{group_id}:media")],
-                 [B("🗑 Profile ဖျက်မယ်", callback_data=f"profile_delete_ask:{group_id}")]])
+    actions = profile_actions(group_id, bool(p["is_public"]))
     await show_profile(context.bot, q.from_user.id, p, actions)
 
 async def profile_public(update, context):
@@ -796,10 +799,7 @@ async def profile_public(update, context):
     else:
         await db.set_private_profile(q.from_user.id, gid)
     await q.answer("💗 Profile အပြင်အဆင် သိမ်းပြီးပြီ။")
-    await q.edit_message_reply_markup(reply_markup=K([[
-        B("🌷 Public ပိတ်မယ်" if state else "🌍 Public ဖွင့်မယ်",
-          callback_data=f"profile_public:{gid}:{0 if state else 1}")
-    ]]))
+    await q.edit_message_reply_markup(reply_markup=profile_actions(gid,bool(state)))
 
 
 
