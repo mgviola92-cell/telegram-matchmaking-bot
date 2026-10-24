@@ -79,6 +79,58 @@ async def member(bot, group_id, user_id):
     except TelegramError:
         return False
 
+def private_menu():
+    """Telegram-native inline navigation; no web app."""
+    return K([
+        [B("🎀 ကိုယ့်မိတ်ဆက်ကတ်တွေ", callback_data="home:profile")],
+        [B("💌 ရောက်လာတဲ့စာတွေ", callback_data="home:inbox"),
+         B("📮 ပို့ထားတဲ့စာတွေ", callback_data="home:outgoing")],
+        [B("🌷 စတင်အသုံးပြုပုံ", callback_data="home:help")],
+    ])
+
+async def home_callback(update, context):
+    q = update.callback_query
+    if q.message.chat.type != "private":
+        await q.answer("ဒီမီနူးလေးက Private Chat အတွက်ပါ။", show_alert=True)
+        return
+    action = q.data.split(":",1)[1]
+    await q.answer()
+    if action == "profile":
+        rows = await db.user_profiles(q.from_user.id)
+        if not rows:
+            await q.message.reply_text(
+                "🌷 မိတ်ဆက်ကတ်လေး မရှိသေးဘူးနော်။ Group ထဲမှာ /register ရေးပြီး ဖွင့်လို့ရတယ်။",
+                reply_markup=K([[B("💗 ပင်မစာမျက်နှာ", callback_data="home:main")]]))
+            return
+        buttons = [[B(("🌍 " if p["is_public"] else "💗 ") + p["display_name"][:25],
+                      callback_data=f"profile_view:{p['group_id']}")] for p in rows]
+        buttons.append([B("💗 ပင်မစာမျက်နှာ", callback_data="home:main")])
+        await q.message.reply_text("🎀 ကိုယ့်မိတ်ဆက်ကတ်လေး ရွေးကြည့်မယ်နော်။",reply_markup=K(buttons))
+    elif action == "inbox":
+        rows = await db.incoming_requests(q.from_user.id)
+        if not rows:
+            await q.message.reply_text(say("inbox_empty",q.from_user.id),
+                                       reply_markup=private_menu())
+            return
+        await q.message.reply_text("💌 ဝင်စာတွေ ရှိတယ်နော်။ /inbox နဲ့ ဖွင့်ကြည့်နိုင်တယ်။",
+                                   reply_markup=K([[B("💗 ပင်မစာမျက်နှာ",callback_data="home:main")]]))
+    elif action == "outgoing":
+        rows = await db.outgoing_requests(q.from_user.id)
+        if not rows:
+            await q.message.reply_text(say("outgoing_empty",q.from_user.id),
+                                       reply_markup=private_menu())
+            return
+        await q.message.reply_text("📮 ပို့ထားတဲ့စာတွေကို /outgoing မှာ ကြည့်နိုင်တယ်နော်။",
+                                   reply_markup=K([[B("💗 ပင်မစာမျက်နှာ",callback_data="home:main")]]))
+    elif action == "help":
+        await q.message.reply_text(
+            "🌷 Group ထဲမှာ /register နဲ့ စာရင်းသွင်းနိုင်တယ်။\n"
+            "🎀 စာရင်းသွင်းပြီးရင် /profile နဲ့ ကတ်လေးကို စီမံနိုင်တယ်။\n"
+            "💌 Group ထဲမှာ /match နဲ့ ကတ်လေးတွေ ကြည့်နိုင်တယ်။",
+            reply_markup=K([[B("💗 ပင်မစာမျက်နှာ",callback_data="home:main")]]))
+    elif action == "main":
+        await q.message.reply_text(say("welcome",q.from_user.id),reply_markup=private_menu())
+
 async def start(update, context):
     msg = update.effective_message
     if update.effective_chat.type != "private":
@@ -118,12 +170,12 @@ async def start(update, context):
         drafts[update.effective_user.id] = {"group_id": gid}
         await msg.reply_text("💌 လူတောင်းပွဲမှာ ပါဝင်ဖို့ အသက် ၁၈ နှစ် ပြည့်ပြီးပြီလား?", reply_markup=K([[B("💗 ပြည့်ပြီးပါပြီ", callback_data="age_confirm:yes")], [B("🌷 မပြည့်သေးပါဘူး", callback_data="age_confirm:no")]]))
         return CONFIRM_AGE
-    await msg.reply_text(say("welcome", update.effective_user.id))
+    await msg.reply_text(say("welcome", update.effective_user.id), reply_markup=private_menu())
     return ConversationHandler.END
 
 async def register(update, context):
     if update.effective_chat.type not in ("group", "supergroup"):
-        await update.message.reply_text("💗 Group ထဲမှာ /register လို့ ရေးပေးပါနော်။")
+        await update.message.reply_text("🌷 /register ကို Group ထဲမှာ စတင်ပေးနော်။", reply_markup=private_menu())
         return
     if not (await db.group_settings(update.effective_chat.id))["registration"]:
         await update.message.reply_text("🌷 ဒီ Group မှာ Profile စာရင်းသွင်းခြင်းကို Admin က ခဏပိတ်ထားတယ်နော်။")
@@ -669,7 +721,7 @@ async def profile(update, context):
         return
     rows = await db.user_profiles(update.effective_user.id)
     if not rows:
-        await update.message.reply_text("🌷 Profile လေး မရှိသေးဘူးနော်။ Group ထဲက /register နဲ့ စကြမယ်။")
+        await update.message.reply_text("🌷 Profile လေး မရှိသေးဘူးနော်။ Group ထဲက /register နဲ့ စကြမယ်။", reply_markup=private_menu())
         return
     buttons = []
     for row in rows:
@@ -1040,6 +1092,7 @@ def handlers():
             CommandHandler("inbox", inbox), CommandHandler("outgoing", outgoing),
             CommandHandler("profile", profile), CommandHandler("settings", settings),
             CallbackQueryHandler(setting_callback, pattern=r"^setting:"),
+            CallbackQueryHandler(home_callback, pattern=r"^home:"),
             CallbackQueryHandler(profile_view, pattern=r"^profile_view:"),
             CallbackQueryHandler(profile_public, pattern=r"^profile_public:"),
             CallbackQueryHandler(profile_delete_ask,pattern=r"^profile_delete_ask:"),
