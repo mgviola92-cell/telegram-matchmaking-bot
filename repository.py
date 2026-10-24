@@ -54,8 +54,8 @@ async def send_request(sender_id, sender_group_id, recipient_id, recipient_group
             # invitations never impose a cooldown.
             cooldown = await c.fetchval("""SELECT 1 FROM requests
                 WHERE sender_id=$1 AND recipient_id=$2
-                  AND ((status='rejected' AND created_at>now()-interval '12 hours')
-                    OR (status='accepted' AND created_at>now()-interval '24 hours'))
+                  AND ((status='rejected' AND COALESCE(decided_at,created_at)>now()-interval '12 hours')
+                    OR (status='accepted' AND COALESCE(decided_at,created_at)>now()-interval '24 hours'))
                 LIMIT 1""", sender_id, recipient_id)
             if cooldown:
                 return None
@@ -73,7 +73,7 @@ async def resolve_request(request_id, recipient_id, action):
         raise ValueError("Invalid action")
     p = await pool()
     async with p.acquire() as c:
-        return await c.fetchrow("""UPDATE requests SET status=$3 WHERE id=$1 AND recipient_id=$2
+        return await c.fetchrow("""UPDATE requests SET status=$3,decided_at=now() WHERE id=$1 AND recipient_id=$2
           AND status='pending' AND expires_at>now() RETURNING *""",request_id,recipient_id,action)
 
 async def withdraw_request(request_id, sender_id):
