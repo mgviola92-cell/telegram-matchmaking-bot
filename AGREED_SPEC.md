@@ -18,7 +18,7 @@ Status labels: **agreed** = specification, **implemented** = in source, **pendin
 - Age confirmation is part of registration, not a repeated question at every request.
 
 ## Discovery — agreed, mostly pending
-- One active `/match` card per viewer per group. Buttons usable by its owner only. Navigation, per-group session storage and Public switch are now coded; inactivity disables only **on interaction**, not automatically at five minutes (pending).
+- One active `/match` card per viewer per group. Buttons usable by its owner only. Navigation, per-group session storage and Public switch are coded. One-shot asynchronous five-minute inactivity button cleanup is coded, with a one-time restart recovery query; runtime behavior still requires end-to-end testing.
 - Prev/Next edit the same card, unseen-first shuffled order, 5-minute inactivity timeout, timer reset on interaction, persisted across restarts.
 - Group Only default. Public Browse toggle adds profiles voluntarily made public, including from the current group.
 - One public profile per person across all groups; switching public profile demotes the former.
