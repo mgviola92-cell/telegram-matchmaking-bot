@@ -448,11 +448,28 @@ async def cancel(update, context):
     await update.message.reply_text("နောက်မှ ပြန်လုပ်လို့ရပါတယ်နော် 💗")
     return ConversationHandler.END
 
-def request_card_title(sender, recipient, request_id):
-    """Compact one-line request context; no duplicate profile explanation."""
+def request_card_title(sender, recipient, request_id, *, recipient_id=None, username=None):
+    """Short public request caption with a clickable mention of its recipient."""
     from_name = html.escape(sender["display_name"][:40])
     to_name = html.escape(recipient["display_name"][:40])
-    return f"💌 <b>{from_name} → {to_name}</b> · #{request_id}\n"
+    if recipient_id is not None:
+        # Telegram HTML text mention works for users without public usernames too.
+        link = f"tg://user?id={int(recipient_id)}"
+        if username and username.lstrip("@").replace("_", "").isalnum():
+            username = username.lstrip("@")
+            link = "https://t.me/" + username
+            to_name += " (@" + html.escape(username) + ")"
+        to_name = f'<a href="{html.escape(link, quote=True)}">{to_name}</a>'
+    return f"💌 <b>{from_name} က {to_name} ကို လူတောင်းထားပြီ!</b> · #{int(request_id)}\n"
+
+
+async def request_recipient_username(bot, group_id, user_id):
+    """Look up a username if one exists; otherwise HTML mention uses numeric ID."""
+    try:
+        chat_member = await bot.get_chat_member(group_id, user_id)
+        return getattr(chat_member.user, "username", None)
+    except TelegramError:
+        return None
 
 
 
@@ -679,7 +696,9 @@ async def ask_confirm_callback(update, context):
     try:
         card = await show_profile(context.bot, target_group, source,
             K([[B("💌 အဖြေပေးမယ်", callback_data=f"reply:{result['id']}:{target_user}")]]),
-            header=request_card_title(source,target,result["id"]),
+            header=request_card_title(
+                source,target,result["id"],recipient_id=target_user,
+                username=await request_recipient_username(context.bot,target_group,target_user)),
             reply_to_message_id=session["message_id"] if source_group == target_group else None)
         await db.remember_request_group_message(result["id"],target_user,"card",card.message_id)
     except TelegramError:
@@ -1252,7 +1271,9 @@ async def intro_confirm_callback(update, context):
     try:
         card = await show_profile(context.bot,gid,source,
             K([[B("💕 အဖြေပေးမယ်",callback_data=f"reply:{result['id']}:{target_id}")]]),
-            header=request_card_title(source,target,result["id"]),
+            header=request_card_title(
+                source,target,result["id"],recipient_id=target_id,
+                username=await request_recipient_username(context.bot,gid,target_id)),
             reply_to_message_id=getattr(getattr(q.message,"reply_to_message",None),"message_id",None))
         await db.remember_request_group_message(result["id"],target_id,"card",card.message_id)
     except TelegramError:
