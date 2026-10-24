@@ -32,7 +32,7 @@ async def browse_profiles(viewer_id, group_id, public=False, limit=50):
     p = await pool()
     async with p.acquire() as c:
         return await c.fetch("""SELECT user_id,group_id,display_name,age,bio,media_type,media_file_id
-            FROM profiles WHERE NOT archived AND user_id<>$1 AND (group_id=$2 OR ($3 AND is_public))
+            FROM profiles WHERE NOT archived AND age>=18 AND user_id<>$1 AND (group_id=$2 OR ($3 AND is_public))
             ORDER BY random() LIMIT $4""",viewer_id,group_id,public,limit)
 
 async def send_request(sender_id, sender_group_id, recipient_id, recipient_group_id):
