@@ -16,7 +16,7 @@ class SourceChecks(unittest.TestCase):
         import sys
         sys.path.insert(0, str(ROOT))
         from responses import OPENINGS, ENDINGS, say, variants_count
-        for event in ("welcome", "register_invite", "no_matches", "request_sent"):
+        for event in ("welcome", "register_invite", "no_matches", "request_sent", "inbox_empty", "outgoing_empty", "request_rejected", "profile_saved"):
             self.assertGreaterEqual(variants_count(event), 100)
             self.assertEqual(len(OPENINGS[event]), len(ENDINGS[event]))
             seen = [say(event, user_id=994441) for _ in range(24)]
