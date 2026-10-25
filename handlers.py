@@ -363,7 +363,7 @@ async def start(update, context):
             await msg.reply_text("ဒီလင့်ခ်လေး အဆင်မပြေတော့ဘူးနော်။")
             return ConversationHandler.END
         if not (await db.group_settings(gid))["registration"]:
-            await msg.reply_text(say_notice("register_disabled", q.from_user.id))
+            await msg.reply_text(say_notice("register_disabled", update.effective_user.id))
             return ConversationHandler.END
         if not await member(context.bot, gid, update.effective_user.id):
             await msg.reply_text("အဲဒီ Group ထဲမှာ အရင်ဝင်ထားဖို့ လိုတယ်နော် 💗")
@@ -1314,7 +1314,7 @@ async def settings(update, context):
         return
     gid, uid = update.effective_chat.id, update.effective_user.id
     if not await is_admin(context.bot, gid, uid):
-        await update.message.reply_text(say_notice("admin_only", q.from_user.id))
+        await update.message.reply_text(say_notice("admin_only", update.effective_user.id))
         return
     row = await db.group_settings(gid)
     await update.message.reply_text("🎀 <b>လူတောင်းပွဲ ဝိုင်းစည်းကမ်း</b>\nဒီဝိုင်းမှာ ဘာတွေဖွင့်ထားမလဲ ရွေးလိုက်နော်။",
