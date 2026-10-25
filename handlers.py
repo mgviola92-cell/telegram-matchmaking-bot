@@ -406,7 +406,7 @@ async def name_step(update, context):
         return ConversationHandler.END
     value = update.message.text.strip()
     if not 1 <= len(value) <= 60:
-        await update.message.reply_text("နာမည်လေးကို စာလုံး ၆၀ အောက်နဲ့ ရေးပေးနော်။")
+        await update.message.reply_text(say_notice("invalid_name", update.effective_user.id))
         return NAME
     drafts[update.effective_user.id]["name"] = value
     await update.message.reply_text("📸 ဓာတ်ပုံတစ်ပုံ ဒါမှမဟုတ် စက္ကန့် ၃၀ အောက် Video လေး ပို့ပေးပါ။")
@@ -419,7 +419,7 @@ async def media_step(update, context):
     elif msg.video and msg.video.duration is not None and msg.video.duration <= 30:
         kind, file_id = "video", msg.video.file_id
     else:
-        await msg.reply_text("ဓာတ်ပုံတစ်ပုံ ဒါမှမဟုတ် စက္ကန့် ၃၀ အောက် Video လေး ပို့ပေးနော်။")
+        await msg.reply_text(say_notice("invalid_media", update.effective_user.id))
         return MEDIA
     if not drafts.get(update.effective_user.id, {}).get("adult_confirmed"):
         await msg.reply_text("💌 /register နဲ့ ပြန်စလိုက်နော်။")
@@ -434,7 +434,7 @@ async def bio_step(update, context):
         return ConversationHandler.END
     if not await member(context.bot, d["group_id"], update.effective_user.id):
         drafts.pop(update.effective_user.id, None)
-        await update.message.reply_text("Group ထဲမှာ မရှိတော့လို့ Profile မသိမ်းထားဘူးနော်။")
+        await update.message.reply_text(say_notice("out_of_group", update.effective_user.id))
         return ConversationHandler.END
     if not d.get("adult_confirmed"):
         drafts.pop(update.effective_user.id, None)
@@ -819,7 +819,7 @@ async def reason_text(update, context):
         return ConversationHandler.END
     message = update.message.text.strip()
     if not 1 <= len(message) <= 200:
-        await update.message.reply_text("🌷 စာလုံး ၁ လုံးကနေ ၂၀၀ အထိပဲ ရေးပေးနော်။")
+        await update.message.reply_text(say_notice("invalid_reason", update.effective_user.id))
         return REJECTION_TEXT
     draft["text"] = message
     await update.message.reply_text(
@@ -1079,12 +1079,12 @@ async def profile_edit_text(update, context):
     value = update.message.text.strip()
     field = edit["field"]
     if field == "display_name" and not (1 <= len(value) <= 60):
-        await update.message.reply_text("နာမည်လေးကို စာလုံး ၁ လုံးကနေ ၆၀ လုံးအထိ ရေးပေးနော်။")
+        await update.message.reply_text(say_notice("invalid_name", update.effective_user.id))
         return EDIT_TEXT
     if field == "bio":
         value = "" if value == "/skip" else value
         if len(value) > 300:
-            await update.message.reply_text("Bio လေးကို စာလုံး ၃၀၀ အောက်ပဲ ရေးပေးနော်။")
+            await update.message.reply_text(say_notice("invalid_bio", update.effective_user.id))
             return EDIT_TEXT
     result = await db.update_profile_text(update.effective_user.id, edit["group_id"],field,value)
     context.user_data.pop("profile_edit",None)
@@ -1101,7 +1101,7 @@ async def profile_edit_media(update, context):
     elif message.video and message.video.duration is not None and message.video.duration <= 30:
         kind, fid = "video", message.video.file_id
     else:
-        await message.reply_text("🌷 ဓာတ်ပုံ ဒါမှမဟုတ် စက္ကန့် ၃၀ အောက် Video လေးပဲ ပို့ပေးနော်။")
+        await message.reply_text(say_notice("invalid_media", update.effective_user.id))
         return EDIT_MEDIA
     result = await db.update_profile_media(update.effective_user.id,edit["group_id"],kind,fid)
     context.user_data.pop("profile_edit",None)
@@ -1110,7 +1110,7 @@ async def profile_edit_media(update, context):
 
 async def profile_edit_cancel(update, context):
     context.user_data.pop("profile_edit",None)
-    await update.message.reply_text("🌷 မပြင်တော့ဘူးဆိုလည်း ရပါတယ်နော်။")
+    await update.message.reply_text(say_notice("cancel_edit", update.effective_user.id))
     return ConversationHandler.END
 
 async def profile_delete_ask(update, context):
