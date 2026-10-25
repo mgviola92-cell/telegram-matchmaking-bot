@@ -10,6 +10,7 @@ from telegram.error import TelegramError
 from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, ChatMemberHandler, filters, ConversationHandler
 import repository as db
 from responses import say
+from notices import say_notice
 
 CONFIRM_AGE, NAME, AGE, MEDIA, BIO = range(5)
 EDIT_TEXT, EDIT_MEDIA = range(5, 7)
@@ -255,7 +256,7 @@ async def show_menu_page(q, text, keyboard):
 async def home_callback(update, context):
     q = update.callback_query
     if q.message.chat.type != "private":
-        await q.answer("ဒီမီနူးလေးက Private Chat အတွက်ပါ။", show_alert=True)
+        await q.answer(say_notice("private_only", q.from_user.id), show_alert=True)
         return
     action = q.data.split(":",1)[1]
     await q.answer()
@@ -362,7 +363,7 @@ async def start(update, context):
             await msg.reply_text("ဒီလင့်ခ်လေး အဆင်မပြေတော့ဘူးနော်။")
             return ConversationHandler.END
         if not (await db.group_settings(gid))["registration"]:
-            await msg.reply_text("🌷 ဒီ Group မှာ မိတ်ဆက်ကတ်စာရင်းသွင်းခြင်း ခဏပိတ်ထားတယ်နော်။")
+            await msg.reply_text(say_notice("register_disabled", q.from_user.id))
             return ConversationHandler.END
         if not await member(context.bot, gid, update.effective_user.id):
             await msg.reply_text("အဲဒီ Group ထဲမှာ အရင်ဝင်ထားဖို့ လိုတယ်နော် 💗")
@@ -544,14 +545,14 @@ async def browse_callback(update, context):
         _, uid_text, gid_text, delta_text = q.data.split(":")
         uid, gid, delta = int(uid_text), int(gid_text), int(delta_text)
     except (ValueError, AttributeError):
-        await q.answer("ကတ်လေး အဆင်မပြေတော့ဘူးနော်။", show_alert=True)
+        await q.answer(say_notice("invalid_button", q.from_user.id), show_alert=True)
         return
     if q.from_user.id != uid or q.message.chat.id != gid:
-        await q.answer("ကိုယ့်မိတ်ဆက်ကတ်လေးမှာပဲ လှည့်ကြည့်နိုင်တယ်နော်။", show_alert=True)
+        await q.answer(say_notice("not_card_owner", q.from_user.id), show_alert=True)
         return
     session = await db.advance_browse_session(uid,gid,q.message.message_id,delta)
     if not session:
-        await q.answer("🌷 ဒီကတ်လေး အချိန်ပြည့်သွားပြီ။ /match နဲ့ နောက်တစ်ပွဲ ပြန်စကြမယ်နော်။", show_alert=True)
+        await q.answer(say_notice("expired_card", q.from_user.id), show_alert=True)
         try:
             await q.edit_message_reply_markup(reply_markup=None)
         except TelegramError:
@@ -566,12 +567,12 @@ async def browse_callback(update, context):
     key = keys[session["position"]]
     p = await db.get_profile(key[0],key[1])
     if not p:
-        await q.answer("ဒီ Profile လေး မရှိတော့ဘူးနော်။", show_alert=True)
+        await q.answer(say_notice("missing_profile", q.from_user.id), show_alert=True)
         return
     if delta > 0 and session["position"] == len(keys)-1:
-        await q.answer("💗 နောက်ဆုံးကတ်လေးအထိ ရောက်နေပြီနော်။")
+        await q.answer(say_notice("card_boundary_last", q.from_user.id))
     elif delta < 0 and session["position"] == 0:
-        await q.answer("🌷 ပထမဆုံးကတ်လေးအထိ ရောက်နေပြီနော်။")
+        await q.answer(say_notice("card_boundary_first", q.from_user.id))
     else:
         await q.answer()
     schedule_browse_timeout(context.bot,uid,gid,q.message.message_id)
@@ -587,14 +588,14 @@ async def browse_mode_callback(update, context):
         _, uid_text, gid_text = q.data.split(":")
         uid, gid = int(uid_text), int(gid_text)
     except (ValueError,AttributeError):
-        await q.answer("ကတ်လေး အဆင်မပြေတော့ဘူးနော်။",show_alert=True)
+        await q.answer(say_notice("invalid_button", q.from_user.id),show_alert=True)
         return
     if q.from_user.id != uid or q.message.chat.id != gid:
-        await q.answer("ကိုယ့်ကတ်လေးမှာပဲ ပြောင်းနိုင်တယ်နော်။",show_alert=True)
+        await q.answer(say_notice("not_card_owner", q.from_user.id),show_alert=True)
         return
     session = await db.active_browse_session(uid,gid)
     if not session or session["message_id"] != q.message.message_id:
-        await q.answer("ကတ်လေး သက်တမ်းကုန်သွားပြီနော်။",show_alert=True)
+        await q.answer(say_notice("expired_card", q.from_user.id),show_alert=True)
         return
     settings = await db.group_settings(gid)
     public = not session["public_mode"]
@@ -624,11 +625,11 @@ async def ask_callback(update, context):
         await q.answer("ခလုတ်လေး သက်တမ်းကုန်သွားပြီ။", show_alert=True)
         return
     if q.from_user.id != invoker or q.message.chat.id != source_group:
-        await q.answer("ဒီခလုတ်လေးက Profile ကြည့်နေသူအတွက်ပဲနော် 💗", show_alert=True)
+        await q.answer(say_notice("not_card_owner", q.from_user.id), show_alert=True)
         return
     session = await db.active_browse_session(invoker,source_group)
     if not session or session["message_id"] != q.message.message_id:
-        await q.answer("🌷 ဒီကတ်က ပွဲချိန်ကုန်ပြီနော်။ /match နဲ့ ပြန်လှည့်ကြမယ်။", show_alert=True)
+        await q.answer(say_notice("expired_card", q.from_user.id), show_alert=True)
         return
     keys = session["profile_keys"]
     if isinstance(keys, str):
@@ -637,15 +638,15 @@ async def ask_callback(update, context):
         await q.answer("🌷 အခုကြည့်နေတဲ့ Profile ကတ်လေးမှာပဲ တောင်းပေးနော်။", show_alert=True)
         return
     if not await member(context.bot, source_group, invoker) or not await member(context.bot, target_group, target_user):
-        await q.answer("Group အဖွဲ့ဝင်အခြေအနေ ပြောင်းသွားပြီနော်။", show_alert=True)
+        await q.answer(say_notice("members_changed", q.from_user.id), show_alert=True)
         return
     source = await db.get_profile(invoker, source_group)
     target = await db.get_profile(target_user, target_group)
     if not source or not target:
-        await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။", show_alert=True)
+        await q.answer(say_notice("missing_profile", q.from_user.id), show_alert=True)
         return
     if not (await db.group_settings(source_group))["requests"]:
-        await q.answer("🌷 ဒီဝိုင်းမှာ လူတောင်းစာ ပို့ခွင့် ခဏပိတ်ထားတယ်နော်။", show_alert=True)
+        await q.answer(say_notice("requests_disabled", q.from_user.id), show_alert=True)
         return
     await q.answer()
     await q.message.reply_text(f"💌 <b>{html.escape(source['display_name'])}</b> က <b>{html.escape(target['display_name'])}</b> ဆီ ဖိတ်ခေါ်စာ ပို့မလား?",
@@ -660,10 +661,10 @@ async def ask_confirm_callback(update, context):
         _, invoker, source_group, target_user, target_group = q.data.split(":")
         invoker, source_group, target_user, target_group = map(int,(invoker,source_group,target_user,target_group))
     except (AttributeError,ValueError):
-        await q.answer("ခလုတ်လေး အဆင်မပြေတော့ဘူး။",show_alert=True)
+        await q.answer(say_notice("invalid_button", q.from_user.id),show_alert=True)
         return
     if q.from_user.id != invoker or q.message.chat.id != source_group:
-        await q.answer("ဖိတ်ခေါ်စာပိုင်ရှင်ပဲ အတည်ပြုနိုင်တယ်နော်။",show_alert=True)
+        await q.answer(say_notice("not_request_owner", q.from_user.id),show_alert=True)
         return
     if q.data.startswith("ask_cancel:"):
         await q.answer()
@@ -671,7 +672,7 @@ async def ask_confirm_callback(update, context):
         return
     session = await db.active_browse_session(invoker,source_group)
     if not session:
-        await q.answer("မိတ်ဆက်ကတ်လေး သက်တမ်းကုန်သွားပြီနော်။",show_alert=True)
+        await q.answer(say_notice("expired_card", q.from_user.id),show_alert=True)
         return
     keys = session["profile_keys"]
     if isinstance(keys,str):
@@ -681,21 +682,21 @@ async def ask_confirm_callback(update, context):
         await q.answer("မိတ်ဆက်ကတ်လေး ပြောင်းသွားပြီနော်။",show_alert=True)
         return
     if not await member(context.bot,source_group,invoker) or not await member(context.bot,target_group,target_user):
-        await q.answer("Group အဖွဲ့ဝင်အခြေအနေ ပြောင်းသွားပြီနော်။",show_alert=True)
+        await q.answer(say_notice("members_changed", q.from_user.id),show_alert=True)
         return
     source = await db.get_profile(invoker,source_group)
     target = await db.get_profile(target_user,target_group)
     if not source or not target:
-        await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။",show_alert=True)
+        await q.answer(say_notice("missing_profile", q.from_user.id),show_alert=True)
         return
     touched = await db.touch_browse_session(invoker,source_group,session["message_id"])
     if not touched:
-        await q.answer("ဒီကတ်လေး ပွဲချိန်ကုန်သွားပြီနော်။",show_alert=True)
+        await q.answer(say_notice("expired_card", q.from_user.id),show_alert=True)
         return
     schedule_browse_timeout(context.bot,invoker,source_group,session["message_id"])
     result = await db.send_request(invoker, source_group, target_user, target_group)
     if not result:
-        await q.answer("အချစ်စာလေး ပို့ထားပြီးသား ဖြစ်နိုင်ပါတယ် 💌", show_alert=True)
+        await q.answer(say_notice("request_duplicate", q.from_user.id), show_alert=True)
         return
     await q.answer("အချစ်စာလေး ပို့လိုက်ပြီ 💌")
     try:
@@ -719,14 +720,14 @@ async def reply_callback(update, context):
         _, request_id, target = q.data.split(":")
         request_id, target = int(request_id), int(target)
     except (ValueError, AttributeError):
-        await q.answer("ခလုတ်လေး အဆင်မပြေတော့ဘူး။", show_alert=True)
+        await q.answer(say_notice("invalid_button", q.from_user.id), show_alert=True)
         return
     if q.from_user.id != target:
-        await q.answer("ဒီအချစ်စာလေးက ပိုင်ရှင်အတွက်ပဲနော် 💗", show_alert=True)
+        await q.answer(say_notice("not_request_owner", q.from_user.id), show_alert=True)
         return
     req = await db.pending_request_for_recipient(request_id,target)
     if not req:
-        await q.answer("ဒီဖိတ်ခေါ်စာလေး အဖြေပေးပြီးသား ဒါမှမဟုတ် သက်တမ်းကုန်သွားပြီနော်။",show_alert=True)
+        await q.answer(say_notice("request_unavailable", q.from_user.id),show_alert=True)
         await cleanup_request_group_messages(context.bot,request_id,target)
         return
     refs = await db.get_request_group_messages(request_id,target)
@@ -746,14 +747,14 @@ async def decide_callback(update, context):
         _, request_id, action = q.data.split(":")
         request_id = int(request_id)
     except (AttributeError, ValueError):
-        await q.answer("ခလုတ်လေး အဆင်မပြေတော့ဘူး။", show_alert=True)
+        await q.answer(say_notice("invalid_button", q.from_user.id), show_alert=True)
         return
     if action not in ("accepted", "rejected") or q.message.chat.type != "private":
         await q.answer("ဒီနေရာကနေ အဖြေပေးလို့မရဘူးနော်။", show_alert=True)
         return
     result = await db.resolve_request(request_id, q.from_user.id, action)
     if not result:
-        await q.answer("ဒီအချစ်စာလေးကို အဖြေပေးပြီးသား ဖြစ်နိုင်ပါတယ်။", show_alert=True)
+        await q.answer(say_notice("request_unavailable", q.from_user.id), show_alert=True)
         return
     await q.answer("အဖြေလေး သိမ်းထားပြီ 💗")
     await cleanup_request_group_messages(context.bot,request_id,q.from_user.id)
@@ -792,7 +793,7 @@ async def decide_callback(update, context):
 async def reason_start(update, context):
     q = update.callback_query
     if q.message.chat.type != "private":
-        await q.answer("Private မှာပဲ ပြောပေးနော်။",show_alert=True)
+        await q.answer(say_notice("private_only", q.from_user.id),show_alert=True)
         return ConversationHandler.END
     if q.data == "reason_skip":
         await q.answer()
@@ -801,11 +802,11 @@ async def reason_start(update, context):
     try:
         rid = int(q.data.split(":",1)[1])
     except (ValueError,AttributeError):
-        await q.answer("ခလုတ်လေး အဆင်မပြေတော့ဘူး။",show_alert=True)
+        await q.answer(say_notice("invalid_button", q.from_user.id),show_alert=True)
         return ConversationHandler.END
     req = await db.rejected_request_owned(rid,q.from_user.id)
     if not req or req["rejection_reason"] is not None:
-        await q.answer("ဒီစာအတွက် ထပ်ပြောလို့မရတော့ဘူးနော်။",show_alert=True)
+        await q.answer(say_notice("reason_unavailable", q.from_user.id),show_alert=True)
         return ConversationHandler.END
     context.user_data["reason_draft"] = {"rid":rid}
     await q.answer()
@@ -830,7 +831,7 @@ async def reason_text(update, context):
 async def reason_finish(update, context):
     q = update.callback_query
     if q.message.chat.type != "private":
-        await q.answer("Private မှာပဲ လုပ်ပေးနော်။",show_alert=True)
+        await q.answer(say_notice("private_only", q.from_user.id),show_alert=True)
         return
     draft = context.user_data.pop("reason_draft",None)
     if q.data == "reason_cancel":
@@ -842,7 +843,7 @@ async def reason_finish(update, context):
         return
     req = await db.save_rejection_reason(draft["rid"],q.from_user.id,draft["text"])
     if not req:
-        await q.answer("ဒီစာလေးကို မျှဝေလို့မရတော့ဘူးနော်။",show_alert=True)
+        await q.answer(say_notice("reason_unavailable", q.from_user.id),show_alert=True)
         return
     await q.answer("စကားလေး မျှဝေပြီးပြီ")
     await q.edit_message_text("💌 ကိုယ်သဘောတူတဲ့ စကားလေးကို မျှဝေပြီးပြီနော်။")
@@ -887,15 +888,15 @@ async def inbox_open(update, context):
         await q.answer("စာလေး ဖွင့်လို့မရတော့ဘူးနော်။", show_alert=True)
         return
     if q.message.chat.type != "private":
-        await q.answer("Private Chat မှာပဲ ဖွင့်ပေးနော်။", show_alert=True)
+        await q.answer(say_notice("private_only", q.from_user.id), show_alert=True)
         return
     req = await db.pending_request_for_recipient(request_id, q.from_user.id)
     if not req:
-        await q.answer("ဒီစာလေး သက်တမ်းကုန်သွားပြီ ဒါမှမဟုတ် အဖြေပြီးပြီနော်။", show_alert=True)
+        await q.answer(say_notice("request_unavailable", q.from_user.id), show_alert=True)
         return
     sender = await db.get_profile(req["sender_id"], req["sender_group_id"])
     if not sender:
-        await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။", show_alert=True)
+        await q.answer(say_notice("missing_profile", q.from_user.id), show_alert=True)
         return
     await q.answer()
     try:
@@ -927,16 +928,16 @@ async def outgoing(update, context):
 async def withdraw_ask(update, context):
     q = update.callback_query
     if q.message.chat.type != "private":
-        await q.answer("Private Chat မှာပဲ လုပ်ပေးနော်။", show_alert=True)
+        await q.answer(say_notice("private_only", q.from_user.id), show_alert=True)
         return
     try:
         rid = int(q.data.split(":", 1)[1])
     except (ValueError, AttributeError):
-        await q.answer("ဒီခလုတ်လေး အဆင်မပြေတော့ဘူးနော်။", show_alert=True)
+        await q.answer(say_notice("invalid_button", q.from_user.id), show_alert=True)
         return
     owned = await db.outgoing_requests(q.from_user.id)
     if not any(row["id"] == rid for row in owned):
-        await q.answer("ဒီစာလေး အဖြေပြီးသွားတာ ဒါမှမဟုတ် သက်တမ်းကုန်သွားပြီ။", show_alert=True)
+        await q.answer(say_notice("request_unavailable", q.from_user.id), show_alert=True)
         return
     await q.answer()
     await show_menu_page(q, "💌 ဒီဖိတ်ခေါ်စာလေးကို တကယ် ပြန်ရုပ်သိမ်းမလား?",
@@ -946,7 +947,7 @@ async def withdraw_ask(update, context):
 async def withdraw_do(update, context):
     q = update.callback_query
     if q.message.chat.type != "private":
-        await q.answer("Private Chat မှာပဲ လုပ်ပေးနော်။", show_alert=True)
+        await q.answer(say_notice("private_only", q.from_user.id), show_alert=True)
         return
     if q.data == "withdraw_cancel":
         await q.answer()
@@ -955,11 +956,11 @@ async def withdraw_do(update, context):
     try:
         rid = int(q.data.split(":", 1)[1])
     except (ValueError, AttributeError):
-        await q.answer("ခလုတ်လေး မမှန်တော့ဘူးနော်။", show_alert=True)
+        await q.answer(say_notice("invalid_button", q.from_user.id), show_alert=True)
         return
     result = await db.withdraw_request(rid, q.from_user.id)
     if not result:
-        await q.answer("ဒီစာလေးကို ပြန်ရုပ်သိမ်းလို့ မရတော့ဘူးနော်။", show_alert=True)
+        await q.answer(say_notice("withdraw_unavailable", q.from_user.id), show_alert=True)
         return
     await q.answer("ပြန်ရုပ်သိမ်းပြီးပြီ 💗")
     await q.edit_message_text(say("request_withdrawn",q.from_user.id))
@@ -995,16 +996,16 @@ def profile_actions(group_id, public):
 async def profile_view(update, context):
     q = update.callback_query
     if q.message.chat.type != "private":
-        await q.answer("Private Chat မှာပဲ ဖွင့်ပေးနော်။", show_alert=True)
+        await q.answer(say_notice("private_only", q.from_user.id), show_alert=True)
         return
     try:
         group_id = int(q.data.split(":", 1)[1])
     except (ValueError, AttributeError):
-        await q.answer("ဒီခလုတ်လေး အဆင်မပြေတော့ဘူး။", show_alert=True)
+        await q.answer(say_notice("invalid_button", q.from_user.id), show_alert=True)
         return
     p = await db.get_profile(q.from_user.id, group_id)
     if not p:
-        await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။", show_alert=True)
+        await q.answer(say_notice("missing_profile", q.from_user.id), show_alert=True)
         return
     await q.answer()
     actions = profile_actions(group_id, bool(p["is_public"]))
@@ -1020,17 +1021,17 @@ async def profile_view(update, context):
 async def profile_public(update, context):
     q = update.callback_query
     if q.message.chat.type != "private":
-        await q.answer("Private Chat မှာပဲ ပြောင်းနိုင်တယ်နော်။", show_alert=True)
+        await q.answer(say_notice("private_only", q.from_user.id), show_alert=True)
         return
     try:
         _, group_str, state_str = q.data.split(":")
         gid, state = int(group_str), int(state_str)
     except (AttributeError, ValueError):
-        await q.answer("ဒီခလုတ်လေး အဆင်မပြေတော့ဘူး။", show_alert=True)
+        await q.answer(say_notice("invalid_button", q.from_user.id), show_alert=True)
         return
     p = await db.get_profile(q.from_user.id, gid)
     if not p or state not in (0, 1):
-        await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။", show_alert=True)
+        await q.answer(say_notice("missing_profile", q.from_user.id), show_alert=True)
         return
     if state:
         if not await member(context.bot, gid, q.from_user.id):
@@ -1038,7 +1039,7 @@ async def profile_public(update, context):
             return
         result = await db.set_public_profile(q.from_user.id, gid)
         if not result:
-            await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။", show_alert=True)
+            await q.answer(say_notice("missing_profile", q.from_user.id), show_alert=True)
             return
     else:
         await db.set_private_profile(q.from_user.id, gid)
@@ -1050,16 +1051,16 @@ async def profile_public(update, context):
 async def profile_edit_begin(update, context):
     q = update.callback_query
     if q.message.chat.type != "private":
-        await q.answer("Private Chat မှာပဲ ပြင်ကြမယ်နော်။",show_alert=True)
+        await q.answer(say_notice("private_only", q.from_user.id),show_alert=True)
         return ConversationHandler.END
     try:
         _, gid_str, field = q.data.split(":")
         gid = int(gid_str)
     except (ValueError, AttributeError):
-        await q.answer("ခလုတ်လေး အဆင်မပြေတော့ဘူး။",show_alert=True)
+        await q.answer(say_notice("invalid_button", q.from_user.id),show_alert=True)
         return ConversationHandler.END
     if field not in ("display_name","bio","media") or not await db.get_profile(q.from_user.id,gid):
-        await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။",show_alert=True)
+        await q.answer(say_notice("missing_profile", q.from_user.id),show_alert=True)
         return ConversationHandler.END
     context.user_data["profile_edit"] = {"group_id":gid,"field":field}
     await q.answer()
@@ -1115,7 +1116,7 @@ async def profile_edit_cancel(update, context):
 async def profile_delete_ask(update, context):
     q = update.callback_query
     if q.message.chat.type != "private":
-        await q.answer("Private Chat မှာပဲ လုပ်ပေးနော်။",show_alert=True)
+        await q.answer(say_notice("private_only", q.from_user.id),show_alert=True)
         return
     try:
         gid = int(q.data.split(":",1)[1])
@@ -1123,7 +1124,7 @@ async def profile_delete_ask(update, context):
         await q.answer("ခလုတ်လေး အဆင်မပြေတော့ဘူးနော်။",show_alert=True)
         return
     if not await db.get_profile(q.from_user.id,gid):
-        await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။",show_alert=True)
+        await q.answer(say_notice("missing_profile", q.from_user.id),show_alert=True)
         return
     await q.answer()
     await q.edit_message_caption(caption="🗑 ဒီ Group အတွက် Profile လေးကို တကယ်ဖျက်မလား? ဖျက်ပြီးရင် ပြန်ယူလို့မရဘူးနော်။",
@@ -1133,7 +1134,7 @@ async def profile_delete_ask(update, context):
 async def profile_delete_do(update, context):
     q = update.callback_query
     if q.message.chat.type != "private":
-        await q.answer("Private Chat မှာပဲ လုပ်ပေးနော်။",show_alert=True)
+        await q.answer(say_notice("private_only", q.from_user.id),show_alert=True)
         return
     if q.data == "profile_delete_cancel":
         await q.answer()
@@ -1146,7 +1147,7 @@ async def profile_delete_do(update, context):
         return
     result = await db.delete_profile(q.from_user.id,gid)
     if result is None:
-        await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။",show_alert=True)
+        await q.answer(say_notice("missing_profile", q.from_user.id),show_alert=True)
         return
     await q.answer("Profile ဖျက်ပြီးပြီ")
     await q.edit_message_caption(caption=say("profile_deleted",q.from_user.id),reply_markup=None)
@@ -1183,14 +1184,14 @@ async def intro_callback(update, context):
     try:
         gid = int(q.data.split(":",1)[1])
     except (ValueError,AttributeError):
-        await q.answer("ခလုတ်လေး အဆင်မပြေတော့ဘူး။",show_alert=True)
+        await q.answer(say_notice("invalid_button", q.from_user.id),show_alert=True)
         return
     p = await db.get_profile(q.from_user.id,gid)
     if not p or not await member(context.bot,gid,q.from_user.id):
         await q.answer("Group ထဲမှာ ကိုယ့် Profile မရှိတော့ဘူးနော်။",show_alert=True)
         return
     if not (await db.group_settings(gid))["intros"]:
-        await q.answer("မိတ်ဆက်ကတ်တင်တာကို Group Admin က ပိတ်ထားတယ်နော်။",show_alert=True)
+        await q.answer(say_notice("intro_disabled", q.from_user.id),show_alert=True)
         return
     await q.answer()
     try:
@@ -1250,7 +1251,7 @@ async def intro_confirm_callback(update, context):
         await q.answer("မိတ်ဆက်ကတ်လေး အဆင်မပြေတော့ဘူး။",show_alert=True)
         return
     if q.from_user.id != sender_id or q.message.chat.id != gid:
-        await q.answer("ဖိတ်ခေါ်စာပိုင်ရှင်ပဲ ဆုံးဖြတ်နိုင်တယ်နော်။",show_alert=True)
+        await q.answer(say_notice("not_request_owner", q.from_user.id),show_alert=True)
         return
     if verb == "intro_cancel":
         await q.answer()
@@ -1258,19 +1259,19 @@ async def intro_confirm_callback(update, context):
         return
     options = await db.group_settings(gid)
     if not options["requests"] or not options["intros"]:
-        await q.answer("Group မှာ ဖိတ်ခေါ်ခွင့် ခဏပိတ်ထားတယ်နော်။",show_alert=True)
+        await q.answer(say_notice("requests_disabled", q.from_user.id),show_alert=True)
         return
     if not await member(context.bot,gid,sender_id) or not await member(context.bot,gid,target_id):
-        await q.answer("Group အဖွဲ့ဝင်အခြေအနေ ပြောင်းသွားပြီနော်။",show_alert=True)
+        await q.answer(say_notice("members_changed", q.from_user.id),show_alert=True)
         return
     source = await db.get_profile(sender_id,gid)
     target = await db.get_profile(target_id,gid)
     if not source or not target:
-        await q.answer("ဒီမိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။",show_alert=True)
+        await q.answer(say_notice("missing_profile", q.from_user.id),show_alert=True)
         return
     result = await db.send_request(sender_id,gid,target_id,gid)
     if not result:
-        await q.answer("ဖိတ်ခေါ်ပြီးသား ဒါမှမဟုတ် ခဏစောင့်ဖို့လိုနေတယ်နော်။",show_alert=True)
+        await q.answer(say_notice("request_duplicate", q.from_user.id),show_alert=True)
         return
     await q.answer("💌 ဖိတ်ခေါ်စာ ပို့လိုက်ပြီ")
     try:
@@ -1313,7 +1314,7 @@ async def settings(update, context):
         return
     gid, uid = update.effective_chat.id, update.effective_user.id
     if not await is_admin(context.bot, gid, uid):
-        await update.message.reply_text("🌷 ဒီဝိုင်းစည်းကမ်းတွေက Admin တွေပဲ ပြောင်းလို့ရတာနော်။")
+        await update.message.reply_text(say_notice("admin_only", q.from_user.id))
         return
     row = await db.group_settings(gid)
     await update.message.reply_text("🎀 <b>လူတောင်းပွဲ ဝိုင်းစည်းကမ်း</b>\nဒီဝိုင်းမှာ ဘာတွေဖွင့်ထားမလဲ ရွေးလိုက်နော်။",
@@ -1332,11 +1333,11 @@ async def setting_callback(update, context):
         await q.answer("ဒီ Settings ခလုတ်လေး မမှန်တော့ဘူးနော်။", show_alert=True)
         return
     if not await is_admin(context.bot, gid, q.from_user.id):
-        await q.answer("Group Admin တွေပဲ ပြောင်းနိုင်တယ်နော်။", show_alert=True)
+        await q.answer(say_notice("admin_only", q.from_user.id), show_alert=True)
         return
     current = await db.group_settings(gid)
     row = await db.set_group_setting(gid, name, not current[name])
-    await q.answer("✅ အပြင်အဆင် သိမ်းထားပြီ")
+    await q.answer(say_notice("saved_settings", q.from_user.id))
     await q.edit_message_reply_markup(reply_markup=settings_buttons(row))
 
 async def membership_change(update, context):
