@@ -54,4 +54,4 @@ class DynamicNoticeTests(unittest.TestCase):
     def test_notice_has_localizable_burmese_text(self):
         for variants in notices.NOTICES.values():
             for line in variants:
-                self.assertTrue(any("\\u1000" <= c <= "\\u109f" for c in line))
+                self.assertTrue(any(0x1000 <= ord(c) <= 0x109F for c in line))
