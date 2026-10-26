@@ -356,7 +356,7 @@ async def start(update, context):
         recipient = await db.get_profile(req["recipient_id"],req["recipient_group_id"])
         title = await request_header(context.bot,sender,
             recipient or {"display_name":"ဒီဝိုင်းက မိတ်ဆွေ"},rid,
-            req["sender_group_id"],req["recipient_group_id"])
+            req["sender_group_id"],req["recipient_group_id"],sender_id=req["sender_id"],recipient_id=req["recipient_id"])
         await show_profile(context.bot, update.effective_chat.id, sender, keyboard,header=title)
         await cleanup_request_group_messages(context.bot,rid,update.effective_user.id)
         return ConversationHandler.END
@@ -468,10 +468,16 @@ async def cancel(update, context):
     await update.message.reply_text("နောက်မှ ပြန်လုပ်လို့ရပါတယ်နော် 💗")
     return ConversationHandler.END
 
-def request_card_title(sender, recipient, request_id, *, source_group="ပို့သူဝိုင်း", target_group="လက်ခံသူဝိုင်း", **ignored):
-    """Only profile nicknames are shown, never Telegram account links."""
-    from_name = html.escape(sender["display_name"][:40])
-    to_name = html.escape(recipient["display_name"][:40])
+def nickname_link(nickname, user_id=None):
+    """Clickable Telegram account reference displayed ONLY as the profile nickname."""
+    label = html.escape(str(nickname)[:60])
+    if user_id is None:
+        return label
+    return f'<a href="tg://user?id={int(user_id)}">{label}</a>'
+
+def request_card_title(sender, recipient, request_id, *, source_group="ပို့သူဝိုင်း", target_group="လက်ခံသူဝိုင်း", sender_id=None, recipient_id=None, **ignored):
+    from_name = nickname_link(sender["display_name"], sender_id)
+    to_name = nickname_link(recipient["display_name"], recipient_id)
     return (f"💌 <b>{from_name} → {to_name}</b> · #{int(request_id)}\n"
             f"🎀 {source_group} → {target_group}\n")
 
@@ -487,10 +493,11 @@ async def group_label(bot, group_id):
     except (TelegramError,AttributeError):
         return "ဒီဝိုင်း"
 
-async def request_header(bot, sender, recipient, request_id, source_group, target_group):
+async def request_header(bot, sender, recipient, request_id, source_group, target_group, *, sender_id=None, recipient_id=None):
     return request_card_title(sender, recipient, request_id,
         source_group=await group_label(bot,source_group),
-        target_group=await group_label(bot,target_group))
+        target_group=await group_label(bot,target_group),
+        sender_id=sender_id,recipient_id=recipient_id)
 
 async def show_profile(bot, chat_id, p, keyboard, *, header="", reply_to_message_id=None):
     kw = {"caption": media_caption(p, header), "parse_mode": "HTML", "reply_markup": keyboard}
@@ -679,7 +686,7 @@ async def ask_confirm_callback(update, context):
     try:
         card = await show_profile(context.bot, target_group, source,
             K([[B("💌 အဖြေပေးမယ်", callback_data=f"reply:{result['id']}:{target_user}")]]),
-            header=await request_header(context.bot,source,target,result["id"],source_group,target_group),
+            header=await request_header(context.bot,source,target,result["id"],source_group,target_group,sender_id=invoker,recipient_id=target_user),
             reply_to_message_id=session["message_id"] if source_group == target_group else None)
         await db.remember_request_group_message(result["id"],target_user,"card",card.message_id)
     except TelegramError:
@@ -745,8 +752,8 @@ async def decide_callback(update, context):
         return
     sender_profile = await db.get_profile(sender_id,result["sender_group_id"])
     recipient_profile = await db.get_profile(recipient_id,result["recipient_group_id"])
-    sender_name = html.escape(sender_profile["display_name"] if sender_profile else "မိတ်ဆက်သူ")
-    recipient_name = html.escape(recipient_profile["display_name"] if recipient_profile else "လက်ခံသူ")
+    sender_name = nickname_link(sender_profile["display_name"] if sender_profile else "မိတ်ဆက်သူ",sender_id)
+    recipient_name = nickname_link(recipient_profile["display_name"] if recipient_profile else "လက်ခံသူ",recipient_id)
     source_title = await group_label(context.bot,result["sender_group_id"])
     destination_title = await group_label(context.bot,result["recipient_group_id"])
     announcement = (f"🎀 <b>{sender_name} နဲ့ {recipient_name}</b> · "
@@ -1233,7 +1240,7 @@ async def intro_confirm_callback(update, context):
     try:
         card = await show_profile(context.bot,gid,source,
             K([[B("💕 အဖြေပေးမယ်",callback_data=f"reply:{result['id']}:{target_id}")]]),
-            header=await request_header(context.bot,source,target,result["id"],gid,gid),
+            header=await request_header(context.bot,source,target,result["id"],gid,gid,sender_id=sender_id,recipient_id=target_id),
             reply_to_message_id=getattr(getattr(q.message,"reply_to_message",None),"message_id",None))
         await db.remember_request_group_message(result["id"],target_id,"card",card.message_id)
     except TelegramError:
