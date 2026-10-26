@@ -1027,6 +1027,16 @@ async def withdraw_do(update, context):
         return
     await q.answer("ပြန်ရုပ်သိမ်းပြီးပြီ 💗")
     await q.edit_message_text(say("request_withdrawn",q.from_user.id))
+    # A withdrawn request should not leave either group's media card behind.
+    refs=await db.get_request_group_messages(rid,result["recipient_id"])
+    if refs:
+        sender_card=refs.get("sender_card_message_id")
+        if sender_card:
+            try:
+                await context.bot.delete_message(chat_id=refs["sender_group_id"],message_id=sender_card)
+            except TelegramError:
+                logging.info("Could not remove withdrawn sender-side request card %s",rid)
+        await cleanup_request_group_messages(context.bot,rid,result["recipient_id"])
 
 
 async def profile(update, context):
