@@ -33,13 +33,17 @@ async def _expire_browse(bot, uid, gid, message_id, delay):
                 return
             if (datetime.now(timezone.utc)-session['updated_at']).total_seconds() < 180:
                 return
-        settings = await db.group_settings(gid)
-        if not settings["cleanup"]:
-            return
+        # Expired /match media should disappear, not remain as an unclickable card.
+        # The group cleanup setting must not keep time-limited browse photos in chat.
         try:
-            await bot.edit_message_reply_markup(chat_id=gid,message_id=message_id,reply_markup=None)
+            await bot.delete_message(chat_id=gid,message_id=message_id)
         except TelegramError:
-            logging.info('Browse card timeout: markup unavailable')
+            logging.info("Could not delete expired match card; disabling its buttons")
+            try:
+                await bot.edit_message_reply_markup(
+                    chat_id=gid,message_id=message_id,reply_markup=None)
+            except TelegramError:
+                logging.info("Could not disable expired match buttons either")
     except asyncio.CancelledError:
         return
     except Exception:
@@ -73,6 +77,12 @@ def caption(p):
     name = html.escape(p["display_name"])
     bio = html.escape(p["bio"] or "ကိုယ့်အကြောင်း မရေးထားသေးဘူးနော် 👀")
     return f"🎀 <b>{name}</b>\n{bio}"
+
+async def match_caption(bot, profile):
+    """Append the profile owner's latest recorded group, without leaking private invites."""
+    name_and_bio = caption(profile)
+    place = await group_label(bot, profile["group_id"])
+    return f"{name_and_bio}\n\n🏡 <b>ဒီဝိုင်းကနော် —</b> {place}"
 
 def media_caption(p, header=""):
     """On request cards the header already gives the name; do not repeat it."""
@@ -533,7 +543,8 @@ async def match(update, context):
         await update.message.reply_text(say("no_matches", uid))
         return
     p = results[0]
-    sent = await show_profile(context.bot, gid, p, match_buttons(uid,gid,p,0,len(results)))
+    sent = await show_profile(context.bot, gid, p, match_buttons(uid,gid,p,0,len(results)),
+        header=await match_caption(context.bot,p))
     keys = [[row["user_id"],row["group_id"]] for row in results]
     await db.save_browse_session(uid,gid,sent.message_id,keys)
     await db.mark_profile_viewed(uid,gid,p['user_id'],p['group_id'])
@@ -548,8 +559,8 @@ def match_buttons(uid, gid, p, position, total):
            callback_data=f"ask:{uid}:{gid}:{p['user_id']}:{p['group_id']}")],
     ])
 
-async def edit_browse_card(q, uid, gid, p, pos, count):
-    kwargs = {"caption": caption(p), "parse_mode": "HTML"}
+async def edit_browse_card(q, uid, gid, p, pos, count, bot=None):
+    kwargs = {"caption": await match_caption(bot,p), "parse_mode": "HTML"}
     if p["media_type"] == "video":
         media = InputMediaVideo(p["media_file_id"], **kwargs)
     else:
@@ -594,7 +605,7 @@ async def browse_callback(update, context):
         await q.answer()
     schedule_browse_timeout(context.bot,uid,gid,q.message.message_id)
     try:
-        await edit_browse_card(q,uid,gid,p,session["position"],len(keys))
+        await edit_browse_card(q,uid,gid,p,session["position"],len(keys),context.bot)
         await db.mark_profile_viewed(uid,gid,p["user_id"],p["group_id"])
     except TelegramError:
         logging.exception("Failed to edit browse card")
