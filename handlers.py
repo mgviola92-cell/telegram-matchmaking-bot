@@ -82,7 +82,7 @@ async def match_caption(bot, profile):
     """Append the profile owner's latest recorded group, without leaking private invites."""
     name_and_bio = caption(profile)
     place = await group_label(bot, profile["group_id"])
-    return f"{name_and_bio}\n\n🏡 <b>ဒီဝိုင်းကနော် —</b> {place}"
+    return f"{name_and_bio}\n\n🏡 <b>ရှိနေတဲ့ဝိုင်း —</b> {place}"
 
 def media_caption(p, header=""):
     """On request cards the header already gives the name; do not repeat it."""
@@ -511,8 +511,8 @@ async def request_header(bot, sender, recipient, request_id, source_group, targe
         target_group=await group_label(bot,target_group),
         sender_id=sender_id,recipient_id=recipient_id)
 
-async def show_profile(bot, chat_id, p, keyboard, *, header="", reply_to_message_id=None):
-    kw = {"caption": media_caption(p, header), "parse_mode": "HTML", "reply_markup": keyboard}
+async def show_profile(bot, chat_id, p, keyboard, *, header="", reply_to_message_id=None, full_caption=None):
+    kw = {"caption": full_caption if full_caption is not None else media_caption(p, header), "parse_mode": "HTML", "reply_markup": keyboard}
     if reply_to_message_id is not None:
         kw["reply_to_message_id"] = reply_to_message_id
     if p["media_type"] == "video":
@@ -544,7 +544,7 @@ async def match(update, context):
         return
     p = results[0]
     sent = await show_profile(context.bot, gid, p, match_buttons(uid,gid,p,0,len(results)),
-        header=await match_caption(context.bot,p))
+        full_caption=await match_caption(context.bot,p))
     keys = [[row["user_id"],row["group_id"]] for row in results]
     await db.save_browse_session(uid,gid,sent.message_id,keys)
     await db.mark_profile_viewed(uid,gid,p['user_id'],p['group_id'])
