@@ -9,7 +9,7 @@ async def upsert_profile(user_id, group_id, name, media_type, file_id, bio=None)
             VALUES($1,$2,$3,NULL,$4,$5,$6,false,true,true)
             ON CONFLICT(user_id) DO UPDATE SET display_name=excluded.display_name, age=NULL,
             bio=excluded.bio,media_type=excluded.media_type,media_file_id=excluded.media_file_id,archived=false,
-            adult_self_confirmed=true,is_public=true,archived=false
+            adult_self_confirmed=true,is_public=true
             RETURNING *""",user_id,group_id,name,bio,media_type,file_id)
 
 async def get_profile(user_id, group_id):
@@ -25,7 +25,7 @@ async def restore_profile(user_id, group_id):
     """One global profile does not require re-registration after joining a group."""
     return None
 
-async def browse_profiles(viewer_id, group_id, public=False, limit=50):
+async def browse_profiles(viewer_id, group_id, limit=50):
     p = await pool()
     async with p.acquire() as c:
         return await c.fetch("""SELECT p.user_id,p.group_id,p.display_name,p.age,p.bio,p.media_type,p.media_file_id
@@ -35,7 +35,7 @@ async def browse_profiles(viewer_id, group_id, public=False, limit=50):
                 AND v.target_id=p.user_id AND v.target_group_id=p.group_id
             WHERE NOT p.archived AND p.adult_self_confirmed AND p.user_id<>$1
                 AND p.is_public
-            ORDER BY (v.target_id IS NOT NULL), random() LIMIT $4""",viewer_id,group_id,public,limit)
+            ORDER BY (v.target_id IS NOT NULL), random() LIMIT $3""",viewer_id,group_id,limit)
 
 async def send_request(sender_id, sender_group_id, recipient_id, recipient_group_id):
     if sender_id == recipient_id:
@@ -118,8 +118,8 @@ async def update_profile_text(user_id, group_id, field, value):
     p = await pool()
     async with p.acquire() as c:
         return await c.fetchrow(
-            f"UPDATE profiles SET {columns[field]}=$3 WHERE user_id=$1 AND NOT archived RETURNING *",
-            user_id, group_id, value)
+            f"UPDATE profiles SET {columns[field]}=$2 WHERE user_id=$1 AND NOT archived RETURNING *",
+            user_id, value)
 
 SETTING_NAMES = ("matchmaking", "registration", "requests", "intros", "cleanup")
 
@@ -202,23 +202,23 @@ async def delete_profile(user_id, group_id):
             await c.execute("SELECT pg_advisory_xact_lock($1,$2)", user_id % 2147483647, group_id % 2147483647)
             found = await c.fetchrow(
                 "DELETE FROM profiles WHERE user_id=$1 RETURNING user_id,group_id",
-                user_id, group_id)
+                user_id)
             if not found:
                 return None
             pending = await c.fetch("""UPDATE requests SET status='withdrawn'
                 WHERE status='pending' AND
                 (sender_id=$1 OR recipient_id=$1)
-                RETURNING sender_id,recipient_id""", user_id, group_id)
+                RETURNING sender_id,recipient_id""", user_id)
             old_cards = await c.fetch("""DELETE FROM browse_sessions
                 WHERE viewer_id=$1 OR EXISTS
                      (SELECT 1 FROM jsonb_array_elements(profile_keys) AS key
                       WHERE (key->>0)::bigint=$1)
-                RETURNING viewer_id,group_id,message_id""", user_id,group_id)
+                RETURNING viewer_id,group_id,message_id""", user_id)
             await c.execute("""DELETE FROM viewed_profiles
-                WHERE viewer_id=$1 OR target_id=$1""",user_id,group_id)
+                WHERE viewer_id=$1 OR target_id=$1""",user_id)
             # A removed profile should not keep past cooldowns for its group.
             await c.execute("""DELETE FROM requests WHERE status<>'pending' AND
-                (sender_id=$1 OR recipient_id=$1)""",user_id,group_id)
+                (sender_id=$1 OR recipient_id=$1)""",user_id)
             return {"affected": [dict(row) for row in pending],
                     "old_cards": [dict(row) for row in old_cards]}
 
@@ -227,9 +227,9 @@ async def update_profile_media(user_id, group_id, media_type, file_id):
         raise ValueError("Unsupported media type")
     p = await pool()
     async with p.acquire() as c:
-        return await c.fetchrow("""UPDATE profiles SET media_type=$3,media_file_id=$4
+        return await c.fetchrow("""UPDATE profiles SET media_type=$2,media_file_id=$3
             WHERE user_id=$1 AND NOT archived RETURNING *""",
-            user_id,group_id,media_type,file_id)
+            user_id,media_type,file_id)
 
 async def recent_browse_sessions():
     """One-time startup recovery; do not periodically poll."""
