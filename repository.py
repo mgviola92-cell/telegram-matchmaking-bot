@@ -5,11 +5,11 @@ from db import pool
 async def upsert_profile(user_id, group_id, name, media_type, file_id, bio=None):
     p = await pool()
     async with p.acquire() as c:
-        return await c.fetchrow("""INSERT INTO profiles(user_id,group_id,display_name,age,bio,media_type,media_file_id,archived,adult_self_confirmed,is_public)
-            VALUES($1,$2,$3,NULL,$4,$5,$6,false,true,true)
+        return await c.fetchrow("""INSERT INTO profiles(user_id,group_id,display_name,age,bio,media_type,media_file_id,archived,adult_self_confirmed)
+            VALUES($1,$2,$3,NULL,$4,$5,$6,false,true)
             ON CONFLICT(user_id) DO UPDATE SET display_name=excluded.display_name, age=NULL,
             bio=excluded.bio,media_type=excluded.media_type,media_file_id=excluded.media_file_id,archived=false,
-            adult_self_confirmed=true,is_public=true
+            adult_self_confirmed=true
             RETURNING *""",user_id,group_id,name,bio,media_type,file_id)
 
 async def get_profile(user_id, group_id):
@@ -34,7 +34,7 @@ async def browse_profiles(viewer_id, group_id, limit=50):
                 v.viewer_id=$1 AND v.viewer_group_id=$2
                 AND v.target_id=p.user_id AND v.target_group_id=p.group_id
             WHERE NOT p.archived AND p.adult_self_confirmed AND p.user_id<>$1
-                AND p.is_public
+               
             ORDER BY (v.target_id IS NOT NULL), random() LIMIT $3""",viewer_id,group_id,limit)
 
 async def send_request(sender_id, sender_group_id, recipient_id, recipient_group_id):
@@ -139,18 +139,18 @@ async def set_group_setting(group_id, name, enabled):
                 ON CONFLICT(group_id) DO UPDATE SET {name}=excluded.{name} RETURNING *""",
             group_id, enabled)
 
-async def save_browse_session(user_id, group_id, message_id, public_mode, keys, position=0):
-    """Replace browsing cursor with compact ID pairs, never photos or captions."""
+async def save_browse_session(user_id, group_id, message_id, keys, position=0):
+    """One global-mode browsing cursor per user and group."""
     import json
     p = await pool()
     async with p.acquire() as c:
         return await c.fetchrow("""INSERT INTO browse_sessions
-            (viewer_id,group_id,message_id,public_mode,profile_keys,position,updated_at)
-            VALUES($1,$2,$3,$4,$5::jsonb,$6,now())
+            (viewer_id,group_id,message_id,profile_keys,position,updated_at)
+            VALUES($1,$2,$3,$4::jsonb,$5,now())
             ON CONFLICT(viewer_id,group_id) DO UPDATE SET
-            message_id=excluded.message_id,public_mode=excluded.public_mode,
-            profile_keys=excluded.profile_keys,position=excluded.position,updated_at=now()
-            RETURNING *""", user_id,group_id,message_id,public_mode,json.dumps(keys),position)
+            message_id=excluded.message_id,profile_keys=excluded.profile_keys,
+            position=excluded.position,updated_at=now()
+            RETURNING *""",user_id,group_id,message_id,json.dumps(keys),position)
 
 async def get_browse_session(user_id, group_id):
     p = await pool()
