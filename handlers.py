@@ -389,6 +389,7 @@ async def register(update, context):
         await update.message.reply_text("🌷 ဒီ Group မှာ Profile စာရင်းသွင်းခြင်းကို Admin က ခဏပိတ်ထားတယ်နော်။")
         return
     if await db.get_profile(update.effective_user.id, update.effective_chat.id):
+        await db.record_profile_presence(update.effective_user.id,update.effective_chat.id)
         await update.message.reply_text("🎀 မိတ်ဆက်ကတ် ရှိပြီးသားနော်။ ဒီဝိုင်းမှာလည်း /match နဲ့ တန်းလှည့်လို့ရတယ်။")
         return
     me = await context.bot.get_me()
@@ -452,6 +453,7 @@ async def bio_step(update, context):
         return ConversationHandler.END
     bio = "" if update.message.text == "/skip" else update.message.text[:300]
     await db.upsert_profile(update.effective_user.id, d["group_id"], d["name"], d["media_type"], d["file_id"], bio)
+    await db.record_profile_presence(update.effective_user.id,d["group_id"])
     drafts.pop(update.effective_user.id, None)
     gid = d["group_id"]
     intro_enabled = (await db.group_settings(gid))["intros"]
@@ -521,6 +523,7 @@ async def match(update, context):
         url = f"https://t.me/{me.username}?start=join_{gid}"
         await update.message.reply_text(say("register_invite", uid), reply_markup=K([[B("💗 Profile လေး ဖန်တီးမယ်", url=url)]]))
         return
+    await db.record_profile_presence(uid,gid)
     existing = await db.active_browse_session(uid, gid)
     if existing:
         await update.message.reply_text(say("match_in_progress",uid))
@@ -1319,9 +1322,9 @@ async def membership_change(update, context):
     active = ("member", "administrator", "creator")
     try:
         if new in gone and old not in gone:
-            await db.archive_profile(target.id,event.chat.id)
+            await db.remove_profile_presence(target.id,event.chat.id)
         elif new in active and old in gone:
-            await db.restore_profile(target.id,event.chat.id)
+            await db.record_profile_presence(target.id,event.chat.id)
     except Exception:
         logging.exception("Could not update profile archive status")
 
