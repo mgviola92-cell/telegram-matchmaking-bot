@@ -5,8 +5,8 @@ from db import pool
 async def upsert_profile(user_id, group_id, name, media_type, file_id, bio=None):
     p = await pool()
     async with p.acquire() as c:
-        return await c.fetchrow("""INSERT INTO profiles(user_id,group_id,display_name,age,bio,media_type,media_file_id,archived,adult_self_confirmed)
-            VALUES($1,$2,$3,NULL,$4,$5,$6,false,true)
+        return await c.fetchrow("""INSERT INTO profiles(user_id,group_id,display_name,age,bio,media_type,media_file_id,archived,adult_self_confirmed,is_public)
+            VALUES($1,$2,$3,NULL,$4,$5,$6,false,true,true)
             ON CONFLICT(user_id) DO UPDATE SET display_name=excluded.display_name, age=NULL,
             bio=excluded.bio,media_type=excluded.media_type,media_file_id=excluded.media_file_id,archived=false,
             adult_self_confirmed=true,is_public=true,archived=false
@@ -210,7 +210,9 @@ async def delete_profile(user_id, group_id):
                 (sender_id=$1 OR recipient_id=$1)
                 RETURNING sender_id,recipient_id""", user_id, group_id)
             old_cards = await c.fetch("""DELETE FROM browse_sessions
-                WHERE viewer_id=$1 OR profile_keys::text LIKE ('%[' || $1::text || ',%')
+                WHERE viewer_id=$1 OR EXISTS
+                     (SELECT 1 FROM jsonb_array_elements(profile_keys) AS key
+                      WHERE (key->>0)::bigint=$1)
                 RETURNING viewer_id,group_id,message_id""", user_id,group_id)
             await c.execute("""DELETE FROM viewed_profiles
                 WHERE viewer_id=$1 OR target_id=$1""",user_id,group_id)
