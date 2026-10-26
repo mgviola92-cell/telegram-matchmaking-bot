@@ -132,3 +132,17 @@ $migration$;
 ALTER TABLE profiles DROP COLUMN IF EXISTS is_public;
 ALTER TABLE group_settings DROP COLUMN IF EXISTS public_browse;
 ALTER TABLE browse_sessions DROP COLUMN IF EXISTS public_mode;
+
+-- A global profile can be active in multiple bot groups. This lightweight
+-- routing registry stores group IDs only, never duplicate profiles/media.
+CREATE TABLE IF NOT EXISTS profile_presence (
+ user_id BIGINT NOT NULL,
+ group_id BIGINT NOT NULL,
+ last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ PRIMARY KEY(user_id,group_id)
+);
+CREATE INDEX IF NOT EXISTS profile_presence_recent
+    ON profile_presence(user_id,last_seen_at DESC);
+INSERT INTO profile_presence(user_id,group_id,last_seen_at)
+SELECT user_id,group_id,now() FROM profiles
+ON CONFLICT(user_id,group_id) DO NOTHING;
