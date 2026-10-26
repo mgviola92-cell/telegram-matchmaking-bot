@@ -157,7 +157,8 @@ async def begin(update,context,source_group):
         await update.effective_message.reply_text("💗 Group ထဲက /register နဲ့ Profile အရင်ဖန်တီးပေးနော်။")
         return
     if await get_session(uid):
-        await update.effective_message.reply_text("🎀 ကြည့်နေတဲ့ Profile ကတ်လေး ရှိပြီးသားနော်။",reply_markup=KEYBOARD)
+        from responses import say
+        await update.effective_message.reply_text(say("match_in_progress",uid),reply_markup=KEYBOARD)
         return
     profiles=await db.browse_profiles(uid,source_group,limit=50)
     if not profiles:
