@@ -61,17 +61,24 @@ class MatchCardCopyTests(unittest.TestCase):
         card=handlers.request_card_title(
             {"display_name":"ပို့သူ"},{"display_name":"လက်ခံသူ"},34,
             source_group="Group A",target_group="Group B",sender_id=11,recipient_id=22)
-        self.assertEqual(card.splitlines()[1],"")
-        self.assertIn("🏡 Group - Group A → Group B",card.splitlines()[2])
+        self.assertEqual(card.count("<blockquote>"),2)
+        self.assertEqual(card.count("</blockquote>"),2)
+        self.assertIn("🏡 Group - Group A → Group B",card.splitlines()[-1])
+        self.assertIn("</blockquote>\n\u200b\n<blockquote>",card)
         self.assertNotIn("tg://user?id=11",card)
         self.assertIn('href="tg://user?id=22"',card)
 
-    def test_request_profile_does_not_repeat_sender_name(self):
-        card = handlers.media_caption(
-            {"display_name":"မောင်မောင်","bio":"ဟယ်လိုပါ"},
-            "💌 မောင်မောင် က စုစု ကို လူတောင်းထားပြီ!\n")
-        self.assertEqual(card.count("မောင်မောင်"),1)
-        self.assertIn("ဟယ်လိုပါ",card)
+    def test_request_profile_precedes_two_quote_sections(self):
+        profile={"display_name":"မောင်မောင်","bio":"ဟယ်လိုပါ","age":21,"location":"Yangon"}
+        header=handlers.request_card_title(profile,{"display_name":"စုစု"},123,
+            source_group="Anime Club",target_group="Card Club")
+        card=handlers.media_caption(profile,header)
+        self.assertTrue(card.startswith("<b>မောင်မောင်</b>၊ 21၊ Yangon — ဟယ်လိုပါ"))
+        self.assertEqual(card.count("<blockquote>"),2)
+        self.assertIn("💌",card)
+        self.assertIn("🏡 Group - Anime Club → Card Club",card)
+        self.assertLess(card.index("ဟယ်လိုပါ"),card.index("<blockquote>"))
+        self.assertLess(card.index("💌"),card.index("🏡 Group"))
 
 
 class GroupLabelTests(unittest.IsolatedAsyncioTestCase):
