@@ -368,6 +368,9 @@ async def start(update, context):
         if not await member(context.bot, gid, update.effective_user.id):
             await msg.reply_text("အဲဒီ Group ထဲမှာ အရင်ဝင်ထားဖို့ လိုတယ်နော် 💗")
             return ConversationHandler.END
+        if await db.get_profile(update.effective_user.id,gid):
+            await msg.reply_text("🎀 မိတ်ဆက်ကတ် ရှိပြီးသားနော်။ ဝိုင်းတိုင်းမှာ ဒီကတ်တစ်ခုပဲ သုံးလို့ရတယ်။",reply_markup=private_menu())
+            return ConversationHandler.END
         drafts[update.effective_user.id] = {"group_id": gid}
         await msg.reply_text("💌 လူတောင်းပွဲမှာ ပါဝင်ဖို့ အသက် ၁၈ နှစ် ပြည့်ပြီးပြီလား?", reply_markup=K([[B("💗 ပြည့်ပြီးပါပြီ", callback_data="age_confirm:yes")], [B("🌷 မပြည့်သေးပါဘူး", callback_data="age_confirm:no")]]))
         return CONFIRM_AGE
@@ -380,6 +383,9 @@ async def register(update, context):
         return
     if not (await db.group_settings(update.effective_chat.id))["registration"]:
         await update.message.reply_text("🌷 ဒီ Group မှာ Profile စာရင်းသွင်းခြင်းကို Admin က ခဏပိတ်ထားတယ်နော်။")
+        return
+    if await db.get_profile(update.effective_user.id, update.effective_chat.id):
+        await update.message.reply_text("🎀 မိတ်ဆက်ကတ် ရှိပြီးသားနော်။ ဒီဝိုင်းမှာလည်း /match နဲ့ တန်းလှည့်လို့ရတယ်။")
         return
     me = await context.bot.get_me()
     url = f"https://t.me/{me.username}?start=join_{update.effective_chat.id}"
@@ -510,7 +516,7 @@ async def match(update, context):
     if existing:
         await update.message.reply_text(say("match_in_progress",uid))
         return
-    results = await db.browse_profiles(uid, gid, public=False, limit=50)
+    results = await db.browse_profiles(uid, gid, limit=50)
     if not results:
         await update.message.reply_text(say("no_matches", uid))
         return
@@ -522,13 +528,12 @@ async def match(update, context):
     schedule_browse_timeout(context.bot,uid,gid,sent.message_id)
 
 
-def match_buttons(uid, gid, p, position, total, public):
+def match_buttons(uid, gid, p, position, total, public=False):
     return K([
         [B("⬅️ အရင်လူလေး", callback_data=f"browse:{uid}:{gid}:-1"),
          B("➡️ နောက်လူလေး", callback_data=f"browse:{uid}:{gid}:1")],
-        [B("🌍 ဝိုင်းကျော်လှည့်မယ်" if not public else "🏡 ဒီဝိုင်းပဲ ကြည့်မယ်",
-           callback_data=f"browse_mode:{uid}:{gid}")],
-        [B("💌 မိတ်ဆက်ခွင့်တောင်းမယ်", callback_data=f"ask:{uid}:{gid}:{p['user_id']}:{p['group_id']}")],
+        [B("💌 မိတ်ဆက်ခွင့်တောင်းမယ်",
+           callback_data=f"ask:{uid}:{gid}:{p['user_id']}:{p['group_id']}")],
     ])
 
 async def edit_browse_card(q, uid, gid, p, pos, count, public):
@@ -581,40 +586,6 @@ async def browse_callback(update, context):
         await db.mark_profile_viewed(uid,gid,p["user_id"],p["group_id"])
     except TelegramError:
         logging.exception("Failed to edit browse card")
-
-async def browse_mode_callback(update, context):
-    q = update.callback_query
-    try:
-        _, uid_text, gid_text = q.data.split(":")
-        uid, gid = int(uid_text), int(gid_text)
-    except (ValueError,AttributeError):
-        await q.answer(say_notice("invalid_button", q.from_user.id),show_alert=True)
-        return
-    if q.from_user.id != uid or q.message.chat.id != gid:
-        await q.answer(say_notice("not_card_owner", q.from_user.id),show_alert=True)
-        return
-    session = await db.active_browse_session(uid,gid)
-    if not session or session["message_id"] != q.message.message_id:
-        await q.answer(say_notice("expired_card", q.from_user.id),show_alert=True)
-        return
-    settings = await db.group_settings(gid)
-    public = not session["public_mode"]
-    if public and not settings["public_browse"]:
-        await q.answer("🌷 ဒီဝိုင်းက ဝိုင်းကျော်လှည့်ခွင့် ခဏပိတ်ထားတယ်နော်။",show_alert=True)
-        return
-    results = await db.browse_profiles(uid,gid,public=public,limit=50)
-    if not results:
-        await q.answer("💌 ဒီ Mode မှာ Profile အသစ် မရှိသေးဘူးနော်။",show_alert=True)
-        return
-    keys = [[r["user_id"],r["group_id"]] for r in results]
-    await db.save_browse_session(uid,gid,q.message.message_id,public,keys)
-    schedule_browse_timeout(context.bot,uid,gid,q.message.message_id)
-    await q.answer("🌍 ဝိုင်းကျော်လှည့်ပြီ" if public else "🏡 ဒီဝိုင်းထဲပြန်ရောက်ပြီ")
-    try:
-        await edit_browse_card(q,uid,gid,results[0],0,len(results),public)
-        await db.mark_profile_viewed(uid,gid,results[0]["user_id"],results[0]["group_id"])
-    except TelegramError:
-        logging.exception("Failed to switch browse mode")
 
 async def ask_callback(update, context):
     q = update.callback_query
@@ -977,21 +948,20 @@ async def profile(update, context):
         return
     buttons = []
     for row in rows:
-        label = ("🌍 " if row["is_public"] else "💗 ") + row["display_name"][:25]
+        label = "🎀 " + row["display_name"][:25]
         buttons.append([B(label, callback_data=f"profile_view:{row['group_id']}")])
     await update.message.reply_text(
-        f"💗 <b>ကိုယ့် Profile လေးများ</b>\nProfile {len(rows)} ခု ရှိတယ်နော်။ 🌍 ဆိုတာ Public ဖွင့်ထားတဲ့ Profile ပါ။",
+        f"🎀 <b>ကိုယ့်မိတ်ဆက်ကတ်</b>\nတစ်ခါလုပ်ထားတာနဲ့ ဝိုင်းတိုင်းမှာ သုံးလို့ရပြီနော်။",
         parse_mode="HTML", reply_markup=K(buttons))
 
-def profile_actions(group_id, public):
-    toggle = B("🌷 Public ပိတ်မယ်" if public else "🌍 Public ဖွင့်မယ်",
-               callback_data=f"profile_public:{group_id}:{0 if public else 1}")
-    return K([[toggle],
-              [B("✏️ နာမည်ပြင်မယ်", callback_data=f"profile_edit:{group_id}:display_name"),
-               B("💬 Bio ပြင်မယ်", callback_data=f"profile_edit:{group_id}:bio")],
-              [B("📸 ပုံ/Video ပြင်မယ်", callback_data=f"profile_edit:{group_id}:media")],
-              [B("🗑 Profile ဖျက်မယ်", callback_data=f"profile_delete_ask:{group_id}")],
-              [B("💗 ပင်မစာမျက်နှာ", callback_data="home:main")]])
+def profile_actions(group_id, public=True):
+    return K([
+        [B("✏️ နာမည်ပြင်မယ်",callback_data=f"profile_edit:{group_id}:display_name"),
+         B("💬 Bio ပြင်မယ်",callback_data=f"profile_edit:{group_id}:bio")],
+        [B("📸 ပုံ/Video ပြင်မယ်",callback_data=f"profile_edit:{group_id}:media")],
+        [B("🗑 ကတ်ဖျက်မယ်",callback_data=f"profile_delete_ask:{group_id}")],
+        [B("💗 ပင်မစာမျက်နှာ",callback_data="home:main")],
+    ])
 
 async def profile_view(update, context):
     q = update.callback_query
@@ -1017,36 +987,6 @@ async def profile_view(update, context):
         logging.warning("Cannot remove prior profile picker; retaining it")
         return
     await show_profile(context.bot, q.from_user.id, p, actions)
-
-async def profile_public(update, context):
-    q = update.callback_query
-    if q.message.chat.type != "private":
-        await q.answer(say_notice("private_only", q.from_user.id), show_alert=True)
-        return
-    try:
-        _, group_str, state_str = q.data.split(":")
-        gid, state = int(group_str), int(state_str)
-    except (AttributeError, ValueError):
-        await q.answer(say_notice("invalid_button", q.from_user.id), show_alert=True)
-        return
-    p = await db.get_profile(q.from_user.id, gid)
-    if not p or state not in (0, 1):
-        await q.answer(say_notice("missing_profile", q.from_user.id), show_alert=True)
-        return
-    if state:
-        if not await member(context.bot, gid, q.from_user.id):
-            await q.answer("အဲဒီ Group ထဲမှာ မရှိတော့လို့ Public မဖွင့်နိုင်ဘူးနော်။", show_alert=True)
-            return
-        result = await db.set_public_profile(q.from_user.id, gid)
-        if not result:
-            await q.answer(say_notice("missing_profile", q.from_user.id), show_alert=True)
-            return
-    else:
-        await db.set_private_profile(q.from_user.id, gid)
-    await q.answer("💗 Profile အပြင်အဆင် သိမ်းပြီးပြီ။")
-    await q.edit_message_reply_markup(reply_markup=profile_actions(gid,bool(state)))
-
-
 
 async def profile_edit_begin(update, context):
     q = update.callback_query
@@ -1292,7 +1232,7 @@ async def intro_confirm_callback(update, context):
 
 SETTING_LABELS = {
     "matchmaking": "💗 ဆုံတွေ့ခွင့်", "registration": "📝 မိတ်ဆက်ကတ် စာရင်းသွင်းခွင့်",
-    "requests": "💌 ဖိတ်ခေါ်စာပို့ခွင့်", "public_browse": "🌍 အများမြင်ကတ် လှည့်ကြည့်ခွင့်",
+    "requests": "💌 ဖိတ်ခေါ်စာပို့ခွင့်",
     "intros": "🎀 မိတ်ဆက်ကတ် တင်ခွင့်", "cleanup": "🧹 ကတ်ဟောင်း ရှင်းလင်းခွင့်",
 }
 
@@ -1395,7 +1335,6 @@ def handlers():
     return [registration, profile_editor, reason_editor, owner_setup,
             CallbackQueryHandler(owner_callback,pattern=r"^owner:"), ChatMemberHandler(membership_change,ChatMemberHandler.CHAT_MEMBER), CommandHandler("register", register), CommandHandler("match", match),
             CallbackQueryHandler(browse_callback, pattern=r"^browse:"),
-            CallbackQueryHandler(browse_mode_callback, pattern=r"^browse_mode:"),
             CallbackQueryHandler(ask_callback, pattern=r"^ask:"),
             CallbackQueryHandler(ask_confirm_callback, pattern=r"^ask_(confirm:|cancel:)"), CallbackQueryHandler(reply_callback, pattern=r"^reply:"),
             CallbackQueryHandler(decide_callback, pattern=r"^decide:"),
@@ -1404,7 +1343,6 @@ def handlers():
             CallbackQueryHandler(setting_callback, pattern=r"^setting:"),
             CallbackQueryHandler(home_callback, pattern=r"^home:"),
             CallbackQueryHandler(profile_view, pattern=r"^profile_view:"),
-            CallbackQueryHandler(profile_public, pattern=r"^profile_public:"),
             CallbackQueryHandler(profile_delete_ask,pattern=r"^profile_delete_ask:"),
             CallbackQueryHandler(profile_delete_do,pattern=r"^profile_delete_(do:|cancel$)"),
             CallbackQueryHandler(intro_callback,pattern=r"^intro_(yes:|skip$)"),
