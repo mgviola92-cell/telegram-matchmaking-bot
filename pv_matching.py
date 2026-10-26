@@ -87,17 +87,7 @@ def profile_key(session):
 
 async def expire(bot,user_id,card_id,seconds=180):
     try:
-        await asyncio.sleep(max(0,seconds))
-        session=await get_session(user_id)
-        if session and session["card_message_id"]==card_id:
-            left=180-(datetime.now(timezone.utc)-session["updated_at"]).total_seconds()
-            if left>0:
-                await asyncio.sleep(left+0.2)
-                session=await get_session(user_id)
-            else:
-                session=None
-            if session and session["card_message_id"]==card_id:
-                return
+        await asyncio.sleep(max(0,seconds)+0.3)
         p=await pool()
         async with p.acquire() as c:
             row=await c.fetchrow("""DELETE FROM pv_match_sessions
@@ -262,7 +252,7 @@ async def handle_reply(update,context):
         # Avoid duplicate cards when Telegram deletion is unavailable.
         from telegram import InputMediaPhoto,InputMediaVideo
         media=InputMediaVideo(target["media_file_id"],caption=caption,parse_mode="HTML") if target["media_type"]=="video" else InputMediaPhoto(target["media_file_id"],caption=caption,parse_mode="HTML")
-        await context.bot.edit_message_media(uid,session["card_message_id"],media=media)
+        await context.bot.edit_message_media(media=media,chat_id=uid,message_id=session["card_message_id"])
         await set_position(uid,session["card_message_id"],next_pos)
         reset_timeout(context.bot,uid,session["card_message_id"])
     await db.mark_profile_viewed(uid,session["source_group_id"],target["user_id"],target["group_id"])
