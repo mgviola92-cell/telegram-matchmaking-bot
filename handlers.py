@@ -75,15 +75,23 @@ async def shutdown_browse_timeouts():
         await asyncio.gather(*tasks,return_exceptions=True)
 
 def caption(p):
+    """Compact one-line media caption. Do not invent missing age or city."""
     name = html.escape(p["display_name"])
-    bio = html.escape(p["bio"] or "ကိုယ့်အကြောင်း မရေးထားသေးဘူးနော် 👀")
-    return f"🎀 <b>{name}</b>\n{bio}"
+    age = p.get("age")
+    city = p.get("location")
+    facts = [name]
+    if age is not None:
+        facts.append(str(int(age)))
+    if city:
+        facts.append(html.escape(city))
+    bio = html.escape(p.get("bio") or "")
+    return "၊ ".join(facts) + (f" — {bio}" if bio else "")
 
 async def match_caption(bot, profile):
-    """Append the profile owner's latest recorded group, without leaking private invites."""
-    name_and_bio = caption(profile)
+    """Leo-style summary plus separately framed group provenance."""
+    summary = caption(profile)
     place = await group_label(bot, profile["group_id"])
-    return f"{name_and_bio}\n\n🏡 Group - {place}"
+    return f"{summary}\n<blockquote>🏡 Group - {place}</blockquote>"
 
 def media_caption(p, header=""):
     """On request cards the header already gives the name; do not repeat it."""
@@ -1038,6 +1046,8 @@ async def profile(update, context):
 def profile_actions(group_id):
     return K([
         [B("✏️ နာမည်ပြင်မယ်",callback_data=f"profile_edit:{group_id}:display_name"),
+         B("🎂 အသက်ပြင်မယ်",callback_data=f"profile_edit:{group_id}:age")],
+        [B("🏙 မြို့/တိုင်းပြင်မယ်",callback_data=f"profile_edit:{group_id}:location"),
          B("💬 Bio ပြင်မယ်",callback_data=f"profile_edit:{group_id}:bio")],
         [B("📸 ပုံ/Video ပြင်မယ်",callback_data=f"profile_edit:{group_id}:media")],
         [B("🗑 ကတ်ဖျက်မယ်",callback_data=f"profile_delete_ask:{group_id}")],
@@ -1080,7 +1090,7 @@ async def profile_edit_begin(update, context):
     except (ValueError, AttributeError):
         await q.answer(say_notice("invalid_button", q.from_user.id),show_alert=True)
         return ConversationHandler.END
-    if field not in ("display_name","bio","media") or not await db.get_profile(q.from_user.id,gid):
+    if field not in ("display_name","bio","media","age","location") or not await db.get_profile(q.from_user.id,gid):
         await q.answer(say_notice("missing_profile", q.from_user.id),show_alert=True)
         return ConversationHandler.END
     context.user_data["profile_edit"] = {"group_id":gid,"field":field}
@@ -1090,12 +1100,14 @@ async def profile_edit_begin(update, context):
         return EDIT_MEDIA
     await q.message.reply_text(
         "💗 နာမည်အသစ်လေး ရေးပေးနော်။" if field == "display_name"
+        else "🎂 အသက် ၁၈–၁၂၀ အတွင်း ရိုက်ပေးနော်။" if field == "age"
+        else "🏙 မြို့/တိုင်းနာမည်ပဲ ရေးပေးနော်။ မဖော်ပြချင်ရင် /skip လို့ပို့ပါ။" if field == "location"
         else "💬 Bio အသစ်လေး ရေးပေးနော်။ မထည့်ချင်ရင် /skip လို့ပို့ပါ။")
     return EDIT_TEXT
 
 async def profile_edit_text(update, context):
     edit = context.user_data.get("profile_edit")
-    if not edit or edit["field"] not in ("display_name","bio"):
+    if not edit or edit["field"] not in ("display_name","bio","age","location"):
         return ConversationHandler.END
     value = update.message.text.strip()
     field = edit["field"]
@@ -1106,6 +1118,19 @@ async def profile_edit_text(update, context):
         value = "" if value == "/skip" else value
         if len(value) > 300:
             await update.message.reply_text(say_notice("invalid_bio", update.effective_user.id))
+            return EDIT_TEXT
+    if field == "age":
+        try:
+            value = int(value)
+        except ValueError:
+            value = 0
+        if not 18 <= value <= 120:
+            await update.message.reply_text("🌷 အသက် ၁၈ နှစ်ကနေ ၁၂၀ နှစ်အတွင်းပဲ ရေးပေးနော်။")
+            return EDIT_TEXT
+    if field == "location":
+        value = "" if value == "/skip" else value
+        if len(value) > 50 or "\\n" in value or "\\r" in value:
+            await update.message.reply_text("🌷 မြို့/တိုင်းကို စာလုံး ၅၀ အတွင်းပဲ ရေးပေးနော်။")
             return EDIT_TEXT
     result = await db.update_profile_text(update.effective_user.id, edit["group_id"],field,value)
     context.user_data.pop("profile_edit",None)
