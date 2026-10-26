@@ -143,3 +143,6 @@ CREATE TABLE IF NOT EXISTS profile_presence (
 );
 CREATE INDEX IF NOT EXISTS profile_presence_recent
     ON profile_presence(user_id,last_seen_at DESC);
+
+-- Optional coarse location for profile display; never infer GPS/device location.
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS location TEXT CHECK(length(location)<=50);
