@@ -140,7 +140,7 @@ class RequestConfirmationTests(unittest.IsolatedAsyncioTestCase):
         update=SimpleNamespace(effective_message=msg,
             effective_chat=SimpleNamespace(id=11,type="private"),
             effective_user=SimpleNamespace(id=11))
-        req={"id":9,"sender_id":22,"sender_group_id":-1007}
+        req={"id":9,"sender_id":22,"sender_group_id":-1007,"recipient_id":11,"recipient_group_id":-1007}
         source={"display_name":"Tester","bio":"","media_type":"photo","media_file_id":"file1"}
         bot=SimpleNamespace(send_photo=AsyncMock(return_value=SimpleNamespace(message_id=33)))
         with patch.object(handlers.db,"pending_request_for_recipient",AsyncMock(return_value=req)), \
