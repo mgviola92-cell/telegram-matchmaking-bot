@@ -800,6 +800,7 @@ async def decide_callback(update, context):
         return
     await q.answer("အဖြေလေး သိမ်းထားပြီ 💗")
     await cleanup_request_group_messages(context.bot,request_id,q.from_user.id)
+    await pv_matching.update_sender_card_status(context.bot,result,action)
     try:
         await q.edit_message_reply_markup(reply_markup=None)
     except TelegramError:
