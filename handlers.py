@@ -85,7 +85,10 @@ def caption(p):
     if city:
         facts.append(html.escape(city))
     bio = html.escape(p.get("bio") or "")
-    return "၊ ".join(facts) + (f" — {bio}" if bio else "")
+    # Keep the bio on its own line: on narrow phones a long one-line
+    # name/age/location/bio string wraps into an indistinguishable block.
+    facts[0] = f"<b>{facts[0]}</b>"
+    return "၊ ".join(facts) + (f"\n\n💬 {bio}" if bio else "")
 
 async def match_caption(bot, profile):
     """A readable two-line gap before Telegram group blockquote."""
