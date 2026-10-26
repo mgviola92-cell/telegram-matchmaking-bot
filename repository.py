@@ -7,39 +7,23 @@ async def upsert_profile(user_id, group_id, name, media_type, file_id, bio=None)
     async with p.acquire() as c:
         return await c.fetchrow("""INSERT INTO profiles(user_id,group_id,display_name,age,bio,media_type,media_file_id,archived,adult_self_confirmed)
             VALUES($1,$2,$3,NULL,$4,$5,$6,false,true)
-            ON CONFLICT(user_id,group_id) DO UPDATE SET display_name=excluded.display_name, age=NULL,
+            ON CONFLICT(user_id) DO UPDATE SET display_name=excluded.display_name, age=NULL,
             bio=excluded.bio,media_type=excluded.media_type,media_file_id=excluded.media_file_id,archived=false,
-            adult_self_confirmed=true
+            adult_self_confirmed=true,is_public=true,archived=false
             RETURNING *""",user_id,group_id,name,bio,media_type,file_id)
 
 async def get_profile(user_id, group_id):
     p = await pool()
     async with p.acquire() as c:
-        return await c.fetchrow("SELECT * FROM profiles WHERE user_id=$1 AND group_id=$2 AND NOT archived",user_id,group_id)
-
-async def set_public_profile(user_id, group_id):
-    p = await pool()
-    async with p.acquire() as c:
-        async with c.transaction():
-            await c.execute("SELECT pg_advisory_xact_lock($1)",user_id)
-            exists = await c.fetchval("SELECT 1 FROM profiles WHERE user_id=$1 AND group_id=$2 AND NOT archived",user_id,group_id)
-            if not exists:
-                return None
-            await c.execute("UPDATE profiles SET is_public=false WHERE user_id=$1",user_id)
-            return await c.execute("UPDATE profiles SET is_public=true WHERE user_id=$1 AND group_id=$2 AND NOT archived",user_id,group_id)
+        return await c.fetchrow("SELECT * FROM profiles WHERE user_id=$1 AND NOT archived",user_id)
 
 async def archive_profile(user_id, group_id):
-    p = await pool()
-    async with p.acquire() as c:
-        await c.execute("UPDATE profiles SET archived=true,is_public=false WHERE user_id=$1 AND group_id=$2",user_id,group_id)
+    """Global profiles remain visible when a member leaves one group."""
+    return None
 
 async def restore_profile(user_id, group_id):
-    """Only a stored, previously archived card can be restored."""
-    p = await pool()
-    async with p.acquire() as c:
-        return await c.fetchrow("""UPDATE profiles SET archived=false
-            WHERE user_id=$1 AND group_id=$2 AND archived
-            RETURNING user_id,group_id""", user_id,group_id)
+    """One global profile does not require re-registration after joining a group."""
+    return None
 
 async def browse_profiles(viewer_id, group_id, public=False, limit=50):
     p = await pool()
@@ -50,7 +34,7 @@ async def browse_profiles(viewer_id, group_id, public=False, limit=50):
                 v.viewer_id=$1 AND v.viewer_group_id=$2
                 AND v.target_id=p.user_id AND v.target_group_id=p.group_id
             WHERE NOT p.archived AND p.adult_self_confirmed AND p.user_id<>$1
-                AND (p.group_id=$2 OR ($3 AND p.is_public))
+                AND p.is_public
             ORDER BY (v.target_id IS NOT NULL), random() LIMIT $4""",viewer_id,group_id,public,limit)
 
 async def send_request(sender_id, sender_group_id, recipient_id, recipient_group_id):
@@ -90,10 +74,10 @@ async def resolve_request(request_id, recipient_id, action):
         return await c.fetchrow("""UPDATE requests r SET status=$3,decided_at=now()
           WHERE r.id=$1 AND r.recipient_id=$2 AND r.status='pending' AND r.expires_at>now()
             AND EXISTS (SELECT 1 FROM profiles sender
-              WHERE sender.user_id=r.sender_id AND sender.group_id=r.sender_group_id
+              WHERE sender.user_id=r.sender_id
                 AND NOT sender.archived AND sender.adult_self_confirmed)
             AND EXISTS (SELECT 1 FROM profiles recipient
-              WHERE recipient.user_id=r.recipient_id AND recipient.group_id=r.recipient_group_id
+              WHERE recipient.user_id=r.recipient_id
                 AND NOT recipient.archived AND recipient.adult_self_confirmed)
           RETURNING r.*""",request_id,recipient_id,action)
 
@@ -124,13 +108,7 @@ async def user_profiles(user_id):
     p = await pool()
     async with p.acquire() as c:
         return await c.fetch("""SELECT * FROM profiles WHERE user_id=$1
-            AND NOT archived ORDER BY created_at DESC LIMIT 100""", user_id)
-
-async def set_private_profile(user_id, group_id):
-    p = await pool()
-    async with p.acquire() as c:
-        return await c.execute("""UPDATE profiles SET is_public=false
-            WHERE user_id=$1 AND group_id=$2 AND NOT archived""", user_id, group_id)
+            AND NOT archived ORDER BY created_at DESC LIMIT 1""", user_id)
 
 async def update_profile_text(user_id, group_id, field, value):
     """Only allowlisted text fields, never user-supplied SQL identifiers."""
@@ -140,10 +118,10 @@ async def update_profile_text(user_id, group_id, field, value):
     p = await pool()
     async with p.acquire() as c:
         return await c.fetchrow(
-            f"UPDATE profiles SET {columns[field]}=$3 WHERE user_id=$1 AND group_id=$2 AND NOT archived RETURNING *",
+            f"UPDATE profiles SET {columns[field]}=$3 WHERE user_id=$1 AND NOT archived RETURNING *",
             user_id, group_id, value)
 
-SETTING_NAMES = ("matchmaking", "registration", "requests", "public_browse", "intros", "cleanup")
+SETTING_NAMES = ("matchmaking", "registration", "requests", "intros", "cleanup")
 
 async def group_settings(group_id):
     p = await pool()
@@ -223,26 +201,22 @@ async def delete_profile(user_id, group_id):
         async with c.transaction():
             await c.execute("SELECT pg_advisory_xact_lock($1,$2)", user_id % 2147483647, group_id % 2147483647)
             found = await c.fetchrow(
-                "DELETE FROM profiles WHERE user_id=$1 AND group_id=$2 RETURNING user_id,group_id",
+                "DELETE FROM profiles WHERE user_id=$1 RETURNING user_id,group_id",
                 user_id, group_id)
             if not found:
                 return None
             pending = await c.fetch("""UPDATE requests SET status='withdrawn'
                 WHERE status='pending' AND
-                ((sender_id=$1 AND sender_group_id=$2)
-                 OR (recipient_id=$1 AND recipient_group_id=$2))
+                (sender_id=$1 OR recipient_id=$1)
                 RETURNING sender_id,recipient_id""", user_id, group_id)
             old_cards = await c.fetch("""DELETE FROM browse_sessions
-                WHERE (viewer_id=$1 AND group_id=$2)
-                  OR profile_keys @> jsonb_build_array(jsonb_build_array($1,$2))
+                WHERE viewer_id=$1 OR profile_keys::text LIKE ('%[' || $1::text || ',%')
                 RETURNING viewer_id,group_id,message_id""", user_id,group_id)
             await c.execute("""DELETE FROM viewed_profiles
-                WHERE (viewer_id=$1 AND viewer_group_id=$2)
-                   OR (target_id=$1 AND target_group_id=$2)""",user_id,group_id)
+                WHERE viewer_id=$1 OR target_id=$1""",user_id,group_id)
             # A removed profile should not keep past cooldowns for its group.
             await c.execute("""DELETE FROM requests WHERE status<>'pending' AND
-                ((sender_id=$1 AND sender_group_id=$2)
-                 OR (recipient_id=$1 AND recipient_group_id=$2))""",user_id,group_id)
+                (sender_id=$1 OR recipient_id=$1)""",user_id,group_id)
             return {"affected": [dict(row) for row in pending],
                     "old_cards": [dict(row) for row in old_cards]}
 
@@ -252,7 +226,7 @@ async def update_profile_media(user_id, group_id, media_type, file_id):
     p = await pool()
     async with p.acquire() as c:
         return await c.fetchrow("""UPDATE profiles SET media_type=$3,media_file_id=$4
-            WHERE user_id=$1 AND group_id=$2 AND NOT archived RETURNING *""",
+            WHERE user_id=$1 AND NOT archived RETURNING *""",
             user_id,group_id,media_type,file_id)
 
 async def recent_browse_sessions():
