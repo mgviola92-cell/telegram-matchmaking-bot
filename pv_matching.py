@@ -153,8 +153,8 @@ async def begin(update,context,source_group):
         await update.effective_message.reply_text("🌷 ဒီ Group မှာ လူတောင်းပွဲကို ခဏနားထားတယ်နော်။")
         return
     own=await db.get_profile(uid,source_group)
-    if not own:
-        await update.effective_message.reply_text("💗 Group ထဲက /register နဲ့ Profile အရင်ဖန်တီးပေးနော်။")
+    if not own or not own["adult_self_confirmed"]:
+        await update.effective_message.reply_text("💗 အသက် ၁၈ နှစ်ပြည့်သူတွေအတွက်ပဲ ဖွင့်ထားတာပါ။ Group ထဲက /register နဲ့ အတည်ပြုပေးနော်။")
         return
     if await get_session(uid):
         from responses import say
@@ -287,8 +287,8 @@ async def confirm(update,context):
         return
     sender=await db.get_profile(uid,source_gid)
     recipient=await db.get_profile(target_id,target_gid)
-    if not sender or not recipient:
-        await q.answer("Profile လေး မရှိတော့ဘူးနော်။",show_alert=True)
+    if not sender or not recipient or not sender["adult_self_confirmed"] or not recipient["adult_self_confirmed"]:
+        await q.answer("အတည်ပြုထားတဲ့ Profile လေး မရှိတော့ဘူးနော်။",show_alert=True)
         return
     result=await db.send_request(uid,source_gid,target_id,target_gid)
     if not result:
