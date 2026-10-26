@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request, HTTPException
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from handlers import handlers, restore_browse_timeouts, shutdown_browse_timeouts
+import pv_matching
 from db import init_schema, pool, close as close_db
 
 logging.basicConfig(level=logging.INFO)
@@ -35,6 +36,7 @@ async def lifespan(app: FastAPI):
         await telegram_app.start()
         if os.getenv("DATABASE_URL"):
             await restore_browse_timeouts(telegram_app.bot)
+            await pv_matching.restore_timeouts(telegram_app.bot)
         if BASE_URL and SECRET:
             await telegram_app.bot.set_webhook(BASE_URL + "/telegram/webhook", secret_token=SECRET, allowed_updates=Update.ALL_TYPES)
         else:
@@ -44,6 +46,7 @@ async def lifespan(app: FastAPI):
     yield
     if telegram_app:
         await shutdown_browse_timeouts()
+        await pv_matching.shutdown()
         await telegram_app.stop()
         await telegram_app.shutdown()
     await close_db()
