@@ -61,7 +61,8 @@ class MatchCardCopyTests(unittest.TestCase):
         card=handlers.request_card_title(
             {"display_name":"ပို့သူ"},{"display_name":"လက်ခံသူ"},34,
             source_group="Group A",target_group="Group B",sender_id=11,recipient_id=22)
-        self.assertIn("· #34\\n\\n🏡 Group - Group A → Group B\\n",card)
+        self.assertEqual(card.splitlines()[1],"")
+        self.assertIn("🏡 Group - Group A → Group B",card.splitlines()[2])
         self.assertNotIn("tg://user?id=11",card)
         self.assertIn('href="tg://user?id=22"',card)
 
