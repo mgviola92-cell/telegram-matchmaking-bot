@@ -51,3 +51,10 @@
 - Once a recipient has opened the private reply, the bot attempts to delete the group request media card itself as well as the group handoff prompt. If Telegram denies removal, it removes actionable buttons where possible. It must not delete unrelated group intros.
 - Telegram HTML blockquotes exist, but plain blank lines are used in the tight media captions to avoid extra block framing on narrow screens.
 - Approval/acceptance may reveal account links afterward; no account links should appear in pre-acceptance previews.
+
+## Compact profile captions and Group blockquote
+- Match-media caption: `<profile nickname>၊ <self-reported age if present>၊ <self-provided city/region if present> — <bio if present>`, followed by a Telegram HTML `<blockquote>🏡 Group - <group title / link></blockquote>`.
+- Unknown fields are never guessed. Existing profiles with null age/location display only known fields.
+- For new registrations, one 18+ self-confirmation remains mandatory, followed by self-reported age (18–120), and optional broad city/region (max 50 characters or /skip). Never request precise addresses or GPS location.
+- Private profile management allows age/city edits. Match media is still posted in groups; Leo's private-chat matching flow is not being substituted without separately agreeing on navigation changes.
+- Photo/video captions use Telegram HTML parse mode; blockquotes are supported by Telegram Bot API. Existing group-only mode remains removed.
