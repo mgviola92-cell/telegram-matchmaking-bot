@@ -14,7 +14,7 @@
 
 ## Discovery
 - /match in any bot group shows the global pool, excluding the viewer's own profile. Unseen-first ordering is scoped to the viewer/group.
-- Prev/Next edit one Telegram media card. No group-only mode switch. Cards expire after three minutes inactivity; per-group cleanup setting determines whether stale buttons can be physically removed. Expired actions are blocked regardless.
+- Prev/Next edit one Telegram media card. No group-only mode switch. Cards expire after three minutes inactivity; the bot first deletes the entire match media message (regardless of the general group cleanup setting), falling back to removing action buttons if Telegram refuses deletion. Expired actions are blocked regardless.
 - The active card is usable only by its original viewer.
 
 ## Requests and group provenance
@@ -39,3 +39,7 @@
 - Deploy/build success is not proof of complete live Telegram end-to-end behavior. Track E2E verification separately.
 - The profile migration is idempotent. A permanent backup table retains old per-group profile metadata in case the canonical selection needs review.
 - Routing caveat: a group switch is learned through group use or chat-member events; a user who has never interacted with a destination group may still route via the original registration group until detected. Real Telegram end-to-end verification remains necessary.
+
+## Match-card display and expiry (October 27)
+- Every /match card includes the viewed user's nickname, bio, and the most recently observed group title below them. Public group titles link to the group; private group titles remain plain text. This applies to first card and Next/Previous edits.
+- The bot attempts to delete its own /match message after 180 seconds of inactivity. If Telegram denies deletion, only then disable buttons. Do not delete group introduction cards or request cards under this browse-only timer.
