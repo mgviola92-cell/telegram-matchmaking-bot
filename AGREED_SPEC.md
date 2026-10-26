@@ -19,7 +19,7 @@
 
 ## Requests and group provenance
 - Request confirmation is required before writing a new request.
-- The recipient's currently recorded home group receives the request media card. The header uses nicknames:
+- The recipient's most recently observed active bot group receives the request media card, falling back to the original registration group if no activity has been observed. The header uses nicknames:
   "💌 <sender nickname> → <recipient nickname> · #ID"
   "🎀 <source group title> → <recipient group title>"
 - When a group has a public @username, the **group title** is a clickable link. Private groups show their title only; no invite link is auto-created.
@@ -38,4 +38,4 @@
 - Render Auto Deploy OFF; batch updates then one manual deploy after offline tests pass.
 - Deploy/build success is not proof of complete live Telegram end-to-end behavior. Track E2E verification separately.
 - The profile migration is idempotent. A permanent backup table retains old per-group profile metadata in case the canonical selection needs review.
-- Remaining operational consideration: destination routing currently prefers the profile's recorded registration/home group; if a user leaves that group, a new routing-home selection should be added without making new profile registration necessary.
+- Routing caveat: a group switch is learned through group use or chat-member events; a user who has never interacted with a destination group may still route via the original registration group until detected. Real Telegram end-to-end verification remains necessary.
