@@ -84,17 +84,17 @@ class DualGroupDeliveryTests(unittest.IsolatedAsyncioTestCase):
         mock_pool=SimpleNamespace(acquire=acquired)
         async def profile(uid,gid):
             return sender if uid==11 else recipient
-        with patch.object(pv_matching,"get_session",AsyncMock(return_value=session)), \\
-             patch.object(pv_matching.db,"group_settings",AsyncMock(return_value={"requests":True})), \\
-             patch.object(handlers,"member",AsyncMock(return_value=True)), \\
-             patch.object(pv_matching.db,"get_profile",side_effect=profile), \\
-             patch.object(pv_matching.db,"send_request",AsyncMock(return_value={"id":17})), \\
-             patch.object(handlers,"group_label",AsyncMock(return_value="Group title")), \\
+        with patch.object(pv_matching,"get_session",AsyncMock(return_value=session)), \
+             patch.object(pv_matching.db,"group_settings",AsyncMock(return_value={"requests":True})), \
+             patch.object(handlers,"member",AsyncMock(return_value=True)), \
+             patch.object(pv_matching.db,"get_profile",side_effect=profile), \
+             patch.object(pv_matching.db,"send_request",AsyncMock(return_value={"id":17})), \
+             patch.object(handlers,"group_label",AsyncMock(return_value="Group title")), \
              patch.object(handlers,"show_profile",AsyncMock(side_effect=[
-                 SimpleNamespace(message_id=501),SimpleNamespace(message_id=502)])) as show, \\
-             patch.object(pv_matching,"pool",AsyncMock(return_value=mock_pool)), \\
-             patch.object(pv_matching.db,"remember_request_group_message",AsyncMock()) as remember, \\
-             patch.object(pv_matching,"set_position",AsyncMock()), \\
+                 SimpleNamespace(message_id=501),SimpleNamespace(message_id=502)])) as show, \
+             patch.object(pv_matching,"pool",AsyncMock(return_value=mock_pool)), \
+             patch.object(pv_matching.db,"remember_request_group_message",AsyncMock()) as remember, \
+             patch.object(pv_matching,"set_position",AsyncMock()), \
              patch.object(pv_matching,"reset_timeout"):
             await pv_matching.confirm(update,ctx)
         self.assertEqual(show.await_count,2)
