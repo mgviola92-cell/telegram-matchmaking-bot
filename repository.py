@@ -211,8 +211,8 @@ async def delete_profile(user_id, group_id):
                 RETURNING sender_id,recipient_id""", user_id)
             old_cards = await c.fetch("""DELETE FROM browse_sessions
                 WHERE viewer_id=$1 OR EXISTS
-                     (SELECT 1 FROM jsonb_array_elements(profile_keys) AS key
-                      WHERE (key->>0)::bigint=$1)
+                     (SELECT 1 FROM jsonb_array_elements(profile_keys) AS item(value)
+                      WHERE (item.value->>0)::bigint=$1)
                 RETURNING viewer_id,group_id,message_id""", user_id)
             await c.execute("""DELETE FROM viewed_profiles
                 WHERE viewer_id=$1 OR target_id=$1""",user_id)
