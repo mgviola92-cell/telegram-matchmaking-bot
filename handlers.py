@@ -88,10 +88,11 @@ def caption(p):
     return "၊ ".join(facts) + (f" — {bio}" if bio else "")
 
 async def match_caption(bot, profile):
-    """Leo-style summary plus separately framed group provenance."""
+    """A readable two-line gap before Telegram group blockquote."""
     summary = caption(profile)
     place = await group_label(bot, profile["group_id"])
-    # Invisible spacer characters keep two visual blank lines before HTML blockquote\n    # on Telegram clients that collapse ordinary leading blank lines.\n    return f"{summary}\n\u200b\n\u200b\n<blockquote>🏡 Group - {place}</blockquote>"
+    # Two zero-width spacer lines prevent Telegram clients from collapsing the gap.
+    return f"{summary}\n\u200b\n\u200b\n<blockquote>🏡 Group - {place}</blockquote>"
 
 def media_caption(p, header=""):
     """On request cards the header already gives the name; do not repeat it."""
