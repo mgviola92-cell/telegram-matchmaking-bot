@@ -48,7 +48,7 @@ class SourceChecks(unittest.TestCase):
         self.assertIn("async def reason_finish", handlers)
         self.assertIn("async def membership_change", handlers)
         self.assertIn("async def save_rejection_reason", repository)
-        self.assertIn("profile_keys @>", repository)
+        self.assertIn("jsonb_array_elements(profile_keys)", repository)
         self.assertIn("rejection_reason", schema)
         self.assertIn("viewed_profiles", schema)
 
