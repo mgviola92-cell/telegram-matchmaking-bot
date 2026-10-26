@@ -50,11 +50,20 @@ class MatchCardCopyTests(unittest.TestCase):
             {"display_name":"မောင်မောင်"},{"display_name":"စုစု"},123,
             sender_id=11,recipient_id=22,
             source_group="ဝိုင်း A",target_group="ဝိုင်း B")
-        self.assertIn('<a href="tg://user?id=11">မောင်မောင်</a>',msg)
+        self.assertIn("မောင်မောင်",msg)
+        self.assertNotIn('<a href="tg://user?id=11">',msg)
         self.assertIn('<a href="tg://user?id=22">စုစု</a>',msg)
         self.assertNotIn("@username",msg)
         self.assertNotIn("တောင်းဆိုသူ:",msg)
         self.assertNotIn("လက်ခံမယ့်သူ:",msg)
+
+    def test_mobile_caption_separates_names_from_groups(self):
+        card=handlers.request_card_title(
+            {"display_name":"ပို့သူ"},{"display_name":"လက်ခံသူ"},34,
+            source_group="Group A",target_group="Group B",sender_id=11,recipient_id=22)
+        self.assertIn("· #34\\n\\n🏡 Group - Group A → Group B\\n",card)
+        self.assertNotIn("tg://user?id=11",card)
+        self.assertIn('href="tg://user?id=22"',card)
 
     def test_request_profile_does_not_repeat_sender_name(self):
         card = handlers.media_caption(
