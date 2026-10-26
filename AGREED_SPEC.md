@@ -43,3 +43,11 @@
 ## Match-card display and expiry (October 27)
 - Every /match card includes the viewed user's nickname, bio, and the most recently observed group title below them. Public group titles link to the group; private group titles remain plain text. This applies to first card and Next/Previous edits.
 - The bot attempts to delete its own /match message after 180 seconds of inactivity. If Telegram denies deletion, only then disable buttons. Do not delete group introduction cards or request cards under this browse-only timer.
+
+## Mobile layout and request privacy (October 27)
+- /match caption displays the nickname and bio, then a blank line, then `🏡 Group - <group title>`; keep group title clickable only for public groups.
+- Request media captions use a short first line containing both profile nicknames and request ID, a blank line, then source-group → destination-group titles. Profile bio follows with whitespace, avoiding cramped mobile wrapping.
+- Before acceptance, the sender nickname on request cards and private reply previews is plain escaped text, not a Telegram account hyperlink. The recipient nickname is a clickable text mention; no @username is printed.
+- Once a recipient has opened the private reply, the bot attempts to delete the group request media card itself as well as the group handoff prompt. If Telegram denies removal, it removes actionable buttons where possible. It must not delete unrelated group intros.
+- Telegram HTML blockquotes exist, but plain blank lines are used in the tight media captions to avoid extra block framing on narrow screens.
+- Approval/acceptance may reveal account links afterward; no account links should appear in pre-acceptance previews.
