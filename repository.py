@@ -301,8 +301,8 @@ async def remember_request_group_message(request_id,recipient_id,kind,message_id
 async def get_request_group_messages(request_id,recipient_id):
     p = await pool()
     async with p.acquire() as c:
-        return await c.fetchrow("""SELECT id, recipient_group_id,
-                group_card_message_id,group_prompt_message_id
+        return await c.fetchrow("""SELECT id, sender_group_id, recipient_group_id,
+                sender_card_message_id,group_card_message_id,group_prompt_message_id
             FROM requests WHERE id=$1 AND recipient_id=$2""",request_id,recipient_id)
 
 async def owner_test_request_count(owner_id, test_group_id):
