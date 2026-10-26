@@ -87,18 +87,18 @@ class GroupLabelTests(unittest.IsolatedAsyncioTestCase):
         profile={"display_name":"စုစု","age":21,"location":"Yangon",
                  "bio":"မင်္ဂလာပါ","group_id":-1007}
         title=await handlers.match_caption(bot,profile)
-        self.assertIn("<b>စုစု</b>၊ 21၊ Yangon\n\n💬 မင်္ဂလာပါ",title)
+        self.assertIn("<b>စုစု</b>၊ 21၊ Yangon — မင်္ဂလာပါ",title)
         self.assertIn("မင်္ဂလာပါ\n\u200b\n\u200b\n<blockquote>",title)
         self.assertIn('<blockquote>🏡 Group - <a href="https://t.me/card_friends">Card &amp; Friends</a></blockquote>',title)
 
-    async def test_long_mobile_bio_starts_in_own_paragraph(self):
+    async def test_long_mobile_bio_stays_inline_after_bold_nickname(self):
         bot=SimpleNamespace(get_chat=AsyncMock(
             return_value=SimpleNamespace(title="Card",username=None)))
         bio="အကြောင်းအရာလေးတွေ " * 15
         text=await handlers.match_caption(bot,{
             "display_name":"ချစ်ချစ်","age":None,"location":None,
             "bio":bio,"group_id":-1007})
-        self.assertTrue(text.startswith("<b>ချစ်ချစ်</b>\n\n💬 "))
+        self.assertTrue(text.startswith("<b>ချစ်ချစ်</b> — "))
         self.assertIn(bio,text)
         self.assertIn("\n\u200b\n\u200b\n<blockquote>",text)
 
