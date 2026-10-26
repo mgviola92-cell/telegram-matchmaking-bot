@@ -59,3 +59,49 @@ class PvStartGuards(unittest.IsolatedAsyncioTestCase):
         with patch.object(handlers,"member",AsyncMock(return_value=False)):
             await pv_matching.begin(update,SimpleNamespace(bot=SimpleNamespace()),-10007)
         msg.reply_text.assert_awaited_once()
+
+class DualGroupDeliveryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_confirm_posts_recipient_photo_to_sender_group_and_sender_photo_to_recipient_group(self):
+        from unittest.mock import patch,MagicMock
+        sender={"display_name":"မောင်မောင်","bio":"", "adult_self_confirmed":True,
+                "media_type":"photo","media_file_id":"sender_photo"}
+        recipient={"display_name":"စုစု","bio":"", "adult_self_confirmed":True,
+                   "media_type":"photo","media_file_id":"recipient_photo"}
+        q=SimpleNamespace(data="pvreq:11:-1007:22:-1009",
+              from_user=SimpleNamespace(id=11),
+              message=SimpleNamespace(chat=SimpleNamespace(type="private")),
+              answer=AsyncMock(),edit_message_text=AsyncMock())
+        update=SimpleNamespace(callback_query=q)
+        session={"source_group_id":-1007,"card_message_id":123,
+                 "profile_keys":[[22,-1009]],"position":0}
+        conn=SimpleNamespace(execute=AsyncMock())
+        ctx=SimpleNamespace()
+        ctx.bot=SimpleNamespace(send_message=AsyncMock())
+        import contextlib
+        @contextlib.asynccontextmanager
+        async def acquired():
+            yield conn
+        mock_pool=SimpleNamespace(acquire=acquired)
+        async def profile(uid,gid):
+            return sender if uid==11 else recipient
+        with patch.object(pv_matching,"get_session",AsyncMock(return_value=session)), \\
+             patch.object(pv_matching.db,"group_settings",AsyncMock(return_value={"requests":True})), \\
+             patch.object(handlers,"member",AsyncMock(return_value=True)), \\
+             patch.object(pv_matching.db,"get_profile",side_effect=profile), \\
+             patch.object(pv_matching.db,"send_request",AsyncMock(return_value={"id":17})), \\
+             patch.object(handlers,"group_label",AsyncMock(return_value="Group title")), \\
+             patch.object(handlers,"show_profile",AsyncMock(side_effect=[
+                 SimpleNamespace(message_id=501),SimpleNamespace(message_id=502)])) as show, \\
+             patch.object(pv_matching,"pool",AsyncMock(return_value=mock_pool)), \\
+             patch.object(pv_matching.db,"remember_request_group_message",AsyncMock()) as remember, \\
+             patch.object(pv_matching,"set_position",AsyncMock()), \\
+             patch.object(pv_matching,"reset_timeout"):
+            await pv_matching.confirm(update,ctx)
+        self.assertEqual(show.await_count,2)
+        self.assertEqual(show.await_args_list[0].args[1],-1007)
+        self.assertEqual(show.await_args_list[0].args[2],recipient)
+        self.assertEqual(show.await_args_list[1].args[1],-1009)
+        self.assertEqual(show.await_args_list[1].args[2],sender)
+        self.assertNotIn('tg://user?id=22',show.await_args_list[0].kwargs["header"])
+        self.assertNotIn('tg://user?id=11',show.await_args_list[1].kwargs["header"])
+        remember.assert_awaited_once_with(17,22,"card",502)
