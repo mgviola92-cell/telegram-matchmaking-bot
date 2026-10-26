@@ -58,3 +58,8 @@
 - For new registrations, one 18+ self-confirmation remains mandatory, followed by self-reported age (18–120), and optional broad city/region (max 50 characters or /skip). Never request precise addresses or GPS location.
 - Private profile management allows age/city edits. Match media is still posted in groups; Leo's private-chat matching flow is not being substituted without separately agreeing on navigation changes.
 - Photo/video captions use Telegram HTML parse mode; blockquotes are supported by Telegram Bot API. Existing group-only mode remains removed.
+
+## Two separated Telegram HTML blockquotes on request cards
+- Request media caption shows profile nickname, available age, broad city and bio first. Below are two separate blockquotes: the sender to recipient line plus request ID, and the source group to destination group line. A zero-width spacer line separates the quotes on mobile.
+- Before acceptance, the sender is plain nickname text, while the recipient may be an account-linked nickname. Public group names can link to their group; private group names remain plain.
+- This is a formatting change to existing request cards. PV Reply Keyboard and two-sided group cards remain future work; do not claim they are implemented.
