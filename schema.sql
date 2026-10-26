@@ -7,12 +7,10 @@ CREATE TABLE IF NOT EXISTS profiles (
  bio TEXT CHECK(length(bio)<=300),
  media_type TEXT NOT NULL CHECK(media_type IN ('photo','video')),
  media_file_id TEXT NOT NULL,
- is_public BOOLEAN NOT NULL DEFAULT FALSE,
  archived BOOLEAN NOT NULL DEFAULT FALSE,
  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
  PRIMARY KEY(user_id,group_id)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS one_public_profile_per_user ON profiles(user_id) WHERE is_public;
 CREATE TABLE IF NOT EXISTS requests (
  id BIGSERIAL PRIMARY KEY,
  sender_id BIGINT NOT NULL,
@@ -32,7 +30,6 @@ CREATE TABLE IF NOT EXISTS group_settings (
  matchmaking BOOLEAN NOT NULL DEFAULT TRUE,
  registration BOOLEAN NOT NULL DEFAULT TRUE,
  requests BOOLEAN NOT NULL DEFAULT TRUE,
- public_browse BOOLEAN NOT NULL DEFAULT TRUE,
  intros BOOLEAN NOT NULL DEFAULT TRUE,
  cleanup BOOLEAN NOT NULL DEFAULT TRUE
 );
@@ -48,7 +45,6 @@ CREATE TABLE IF NOT EXISTS browse_sessions (
  viewer_id BIGINT NOT NULL,
  group_id BIGINT NOT NULL,
  message_id BIGINT,
- public_mode BOOLEAN NOT NULL DEFAULT FALSE,
  profile_keys JSONB NOT NULL DEFAULT '[]'::jsonb,
  position INTEGER NOT NULL DEFAULT 0,
  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -93,13 +89,16 @@ CREATE TABLE IF NOT EXISTS owner_qa_settings (
 WITH ranked AS (
  SELECT user_id,group_id,
  ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY
-   (NOT archived) DESC, is_public DESC, created_at DESC, group_id DESC) AS rn
+   (NOT archived) DESC, created_at DESC, group_id DESC) AS rn
  FROM profiles
 )
 DELETE FROM profiles p USING ranked r
  WHERE p.user_id=r.user_id AND p.group_id=r.group_id AND r.rn>1;
-UPDATE profiles SET is_public=true, archived=false WHERE NOT is_public OR archived;
+UPDATE profiles SET archived=false WHERE archived;
 DROP INDEX IF EXISTS one_public_profile_per_user;
 CREATE UNIQUE INDEX IF NOT EXISTS one_global_profile_per_user ON profiles(user_id);
 -- Old sessions refer to legacy per-group IDs and their cursors must be regenerated.
-DELETE FROM browse_sessions WHERE public_mode=true;
+DELETE FROM browse_sessions;
+ALTER TABLE profiles DROP COLUMN IF EXISTS is_public;
+ALTER TABLE group_settings DROP COLUMN IF EXISTS public_browse;
+ALTER TABLE browse_sessions DROP COLUMN IF EXISTS public_mode;
