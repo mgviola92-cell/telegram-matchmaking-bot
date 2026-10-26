@@ -745,8 +745,17 @@ async def decide_callback(update, context):
         await q.message.reply_text("🌷 ဒီဖိတ်ခေါ်စာကို ငြင်းလိုက်ပြီနော်။ အကြောင်းပြချက်လေးကို မျှဝေချင်မှပဲ ပို့ပေးနိုင်တယ်။",
             reply_markup=K([[B("💬 စကားလေး ထပ်ပြောမယ်",callback_data=f"reason_start:{request_id}")],
                             [B("🌷 ဘာမှမပြောတော့ဘူး",callback_data="reason_skip")]]))
+        recipient_profile = await db.get_profile(recipient_id,result["recipient_group_id"])
+        recipient_nick = nickname_link(
+            recipient_profile["display_name"] if recipient_profile else "တစ်ဖက်လူ",recipient_id)
+        from_group = await group_label(context.bot,result["sender_group_id"])
+        to_group = await group_label(context.bot,result["recipient_group_id"])
         try:
-            await context.bot.send_message(sender_id, say("request_rejected",sender_id))
+            await context.bot.send_message(
+                sender_id,
+                f"💌 {recipient_nick} · {html.escape(say('request_rejected',sender_id))}\n"
+                f"🎀 {from_group} → {to_group}",
+                parse_mode="HTML")
         except TelegramError:
             logging.info("Sender private chat unavailable for rejection notice")
         return
