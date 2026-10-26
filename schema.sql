@@ -98,7 +98,14 @@ UPDATE profiles SET archived=false WHERE archived;
 DROP INDEX IF EXISTS one_public_profile_per_user;
 CREATE UNIQUE INDEX IF NOT EXISTS one_global_profile_per_user ON profiles(user_id);
 -- Old sessions refer to legacy per-group IDs and their cursors must be regenerated.
-DELETE FROM browse_sessions;
+DO $migration$
+BEGIN
+ IF EXISTS (SELECT 1 FROM information_schema.columns
+            WHERE table_name='browse_sessions' AND column_name='public_mode') THEN
+   DELETE FROM browse_sessions;
+ END IF;
+END
+$migration$;
 ALTER TABLE profiles DROP COLUMN IF EXISTS is_public;
 ALTER TABLE group_settings DROP COLUMN IF EXISTS public_browse;
 ALTER TABLE browse_sessions DROP COLUMN IF EXISTS public_mode;
