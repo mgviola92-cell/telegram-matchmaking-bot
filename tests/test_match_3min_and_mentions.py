@@ -45,6 +45,17 @@ class MatchCardCopyTests(unittest.TestCase):
         self.assertIn("&lt;sender&gt;",msg)
         self.assertIn("S&amp;U",msg)
 
+    def test_account_mentions_are_clickable_nicknames(self):
+        msg=handlers.request_card_title(
+            {"display_name":"မောင်မောင်"},{"display_name":"စုစု"},123,
+            sender_id=11,recipient_id=22,
+            source_group="ဝိုင်း A",target_group="ဝိုင်း B")
+        self.assertIn('<a href="tg://user?id=11">မောင်မောင်</a>',msg)
+        self.assertIn('<a href="tg://user?id=22">စုစု</a>',msg)
+        self.assertNotIn("@username",msg)
+        self.assertNotIn("တောင်းဆိုသူ:",msg)
+        self.assertNotIn("လက်ခံမယ့်သူ:",msg)
+
     def test_request_profile_does_not_repeat_sender_name(self):
         card = handlers.media_caption(
             {"display_name":"မောင်မောင်","bio":"ဟယ်လိုပါ"},
