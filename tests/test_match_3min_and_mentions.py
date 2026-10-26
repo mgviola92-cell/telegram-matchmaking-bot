@@ -88,6 +88,7 @@ class GroupLabelTests(unittest.IsolatedAsyncioTestCase):
                  "bio":"မင်္ဂလာပါ","group_id":-1007}
         title=await handlers.match_caption(bot,profile)
         self.assertIn("စုစု၊ 21၊ Yangon — မင်္ဂလာပါ",title)
+        self.assertIn("မင်္ဂလာပါ\n\u200b\n\u200b\n<blockquote>",title)
         self.assertIn('<blockquote>🏡 Group - <a href="https://t.me/card_friends">Card &amp; Friends</a></blockquote>',title)
 
     async def test_legacy_profile_omits_unknown_age_and_location(self):
