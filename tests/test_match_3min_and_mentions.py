@@ -81,6 +81,25 @@ class GroupLabelTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await handlers.group_label(bot,-1007),
             '<a href="https://t.me/anime_club">Anime Club</a>')
 
+    async def test_match_caption_leo_summary_and_group_quote(self):
+        bot=SimpleNamespace(get_chat=AsyncMock(
+            return_value=SimpleNamespace(title="Card & Friends",username="card_friends")))
+        profile={"display_name":"စုစု","age":21,"location":"Yangon",
+                 "bio":"မင်္ဂလာပါ","group_id":-1007}
+        title=await handlers.match_caption(bot,profile)
+        self.assertIn("စုစု၊ 21၊ Yangon — မင်္ဂလာပါ",title)
+        self.assertIn('<blockquote>🏡 Group - <a href="https://t.me/card_friends">Card &amp; Friends</a></blockquote>',title)
+
+    async def test_legacy_profile_omits_unknown_age_and_location(self):
+        bot=SimpleNamespace(get_chat=AsyncMock(
+            return_value=SimpleNamespace(title="Group B",username=None)))
+        title=await handlers.match_caption(bot,{
+            "display_name":"မောင်မောင်","age":None,"location":None,
+            "bio":"", "group_id":-1007})
+        self.assertIn("မောင်မောင်",title)
+        self.assertNotIn("None",title)
+        self.assertIn("<blockquote>🏡 Group - Group B</blockquote>",title)
+
     async def test_match_caption_has_group_without_repeating_bio(self):
         bot=SimpleNamespace(get_chat=AsyncMock(
             return_value=SimpleNamespace(title="Card Club",username=None)))
