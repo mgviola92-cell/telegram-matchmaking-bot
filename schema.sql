@@ -143,6 +143,3 @@ CREATE TABLE IF NOT EXISTS profile_presence (
 );
 CREATE INDEX IF NOT EXISTS profile_presence_recent
     ON profile_presence(user_id,last_seen_at DESC);
-INSERT INTO profile_presence(user_id,group_id,last_seen_at)
-SELECT user_id,group_id,now() FROM profiles
-ON CONFLICT(user_id,group_id) DO NOTHING;
