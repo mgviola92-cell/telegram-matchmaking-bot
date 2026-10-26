@@ -28,11 +28,18 @@ async def restore_profile(user_id, group_id):
 async def browse_profiles(viewer_id, group_id, limit=50):
     p = await pool()
     async with p.acquire() as c:
-        return await c.fetch("""SELECT p.user_id,p.group_id,p.display_name,p.age,p.bio,p.media_type,p.media_file_id
+        return await c.fetch("""SELECT p.user_id,COALESCE(venue.group_id,p.group_id) AS group_id,
+                   p.display_name,p.age,p.bio,p.media_type,p.media_file_id
             FROM profiles p
+            LEFT JOIN LATERAL (
+                SELECT group_id FROM profile_presence
+                WHERE user_id=p.user_id
+                ORDER BY last_seen_at DESC LIMIT 1
+            ) venue ON true
             LEFT JOIN viewed_profiles v ON
                 v.viewer_id=$1 AND v.viewer_group_id=$2
-                AND v.target_id=p.user_id AND v.target_group_id=p.group_id
+                AND v.target_id=p.user_id AND
+                    v.target_group_id=COALESCE(venue.group_id,p.group_id)
             WHERE NOT p.archived AND p.adult_self_confirmed AND p.user_id<>$1
                
             ORDER BY (v.target_id IS NOT NULL), random() LIMIT $3""",viewer_id,group_id,limit)
@@ -216,6 +223,7 @@ async def delete_profile(user_id, group_id):
                 RETURNING viewer_id,group_id,message_id""", user_id)
             await c.execute("""DELETE FROM viewed_profiles
                 WHERE viewer_id=$1 OR target_id=$1""",user_id)
+            await c.execute("DELETE FROM profile_presence WHERE user_id=$1",user_id)
             # A removed profile should not keep past cooldowns for its group.
             await c.execute("""DELETE FROM requests WHERE status<>'pending' AND
                 (sender_id=$1 OR recipient_id=$1)""",user_id)
@@ -331,3 +339,18 @@ async def set_owner_qa_group(owner_id,test_group_id):
             VALUES($1,$2) ON CONFLICT(owner_id) DO UPDATE SET
             test_group_id=excluded.test_group_id,updated_at=now()
             RETURNING test_group_id""",owner_id,test_group_id)
+
+async def record_profile_presence(user_id,group_id):
+    """Update only a group routing marker, not a duplicate profile."""
+    p = await pool()
+    async with p.acquire() as c:
+        await c.execute("""INSERT INTO profile_presence(user_id,group_id,last_seen_at)
+            VALUES($1,$2,now())
+            ON CONFLICT(user_id,group_id)
+            DO UPDATE SET last_seen_at=excluded.last_seen_at""",user_id,group_id)
+
+async def remove_profile_presence(user_id,group_id):
+    p = await pool()
+    async with p.acquire() as c:
+        await c.execute("""DELETE FROM profile_presence
+            WHERE user_id=$1 AND group_id=$2""",user_id,group_id)
