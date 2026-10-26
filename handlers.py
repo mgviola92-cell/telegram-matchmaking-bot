@@ -98,12 +98,11 @@ async def match_caption(bot, profile):
     return f"{summary}\n\u200b\n\u200b\n<blockquote>🏡 Group - {place}</blockquote>"
 
 def media_caption(p, header=""):
-    """On request cards the header already gives the name; do not repeat it."""
+    """Profile details first, then separately framed request and group quotes."""
+    profile_text = caption(p)
     if not header:
-        return caption(p)
-    bio = html.escape(p["bio"] or "")
-    # Leave a visible gap after the request heading on narrow mobile screens.
-    return header + (f"\n{bio}" if bio else "")
+        return profile_text
+    return f"{profile_text}\n\u200b\n\u200b\n{header}"
 
 async def member(bot, group_id, user_id):
     try:
@@ -541,8 +540,8 @@ def request_card_title(sender, recipient, request_id, *, source_group="ပို
     # Do not reveal the sender's Telegram account until the request is accepted.
     from_name = nickname_link(sender["display_name"])
     to_name = nickname_link(recipient["display_name"], recipient_id)
-    return (f"💌 <b>{from_name} → {to_name}</b> · #{int(request_id)}\n\n"
-            f"🏡 Group - {source_group} → {target_group}\n")
+    return (f"<blockquote>💌 <b>{from_name} → {to_name}</b> · #{int(request_id)}</blockquote>\n"
+            f"\u200b\n<blockquote>🏡 Group - {source_group} → {target_group}</blockquote>")
 
 async def group_label(bot, group_id):
     """Clickable group names for public groups; plain names for private groups."""
