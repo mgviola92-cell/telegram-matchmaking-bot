@@ -13,6 +13,7 @@ from responses import say
 from notices import say_notice
 
 CONFIRM_AGE, NAME, AGE, MEDIA, BIO = range(5)
+LOCATION = 9
 EDIT_TEXT, EDIT_MEDIA = range(5, 7)
 REJECTION_TEXT = 7
 drafts = {}
@@ -437,6 +438,35 @@ async def name_step(update, context):
         await update.message.reply_text(say_notice("invalid_name", update.effective_user.id))
         return NAME
     drafts[update.effective_user.id]["name"] = value
+    await update.message.reply_text("🎀 အသက်လေး ရိုက်ပေးနော်။ အသက် ၁၈ နှစ်ပြည့်ပြီးသူတွေအတွက်ပဲ ဖွင့်ထားတာပါ။")
+    return AGE
+
+async def age_step(update, context):
+    draft = drafts.get(update.effective_user.id)
+    if not draft or not draft.get("adult_confirmed"):
+        return ConversationHandler.END
+    text = update.message.text.strip()
+    try:
+        age = int(text)
+    except ValueError:
+        age = 0
+    if not 18 <= age <= 120:
+        await update.message.reply_text("🌷 အသက် ၁၈ နှစ်ကနေ ၁၂၀ နှစ်အတွင်း ဂဏန်းနဲ့ ရေးပေးနော်။")
+        return AGE
+    draft["age"] = age
+    await update.message.reply_text(
+        "🏙 နေတဲ့မြို့/တိုင်းလေးပဲ ထည့်ပေးနော်။ လိပ်စာအတိအကျ မထည့်ပါနဲ့။ မဖော်ပြချင်ရင် /skip လို့ပို့ပါ။")
+    return LOCATION
+
+async def location_step(update, context):
+    draft = drafts.get(update.effective_user.id)
+    if not draft or not draft.get("adult_confirmed"):
+        return ConversationHandler.END
+    location = "" if update.message.text == "/skip" else update.message.text.strip()
+    if len(location) > 50 or any(c in location for c in ("\\n", "\\r")):
+        await update.message.reply_text("🌷 မြို့/တိုင်းနာမည်ကို စာလုံး ၅၀ အတွင်းပဲ ထည့်ပေးနော်။")
+        return LOCATION
+    draft["location"] = location or None
     await update.message.reply_text("📸 ဓာတ်ပုံတစ်ပုံ ဒါမှမဟုတ် စက္ကန့် ၃၀ အောက် Video လေး ပို့ပေးပါ။")
     return MEDIA
 
@@ -469,7 +499,8 @@ async def bio_step(update, context):
         await update.message.reply_text("💌 /register နဲ့ ပြန်စလိုက်နော်။")
         return ConversationHandler.END
     bio = "" if update.message.text == "/skip" else update.message.text[:300]
-    await db.upsert_profile(update.effective_user.id, d["group_id"], d["name"], d["media_type"], d["file_id"], bio)
+    await db.upsert_profile(update.effective_user.id, d["group_id"], d["name"], d["media_type"], d["file_id"], bio,
+                            age=d.get("age"), location=d.get("location"))
     await db.record_profile_presence(update.effective_user.id,d["group_id"])
     drafts.pop(update.effective_user.id, None)
     gid = d["group_id"]
@@ -1353,6 +1384,9 @@ def handlers():
         states={
             CONFIRM_AGE: [CallbackQueryHandler(confirm_age, pattern=r"^age_confirm:(yes|no)$")],
             NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, name_step)],
+            AGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, age_step)],
+            LOCATION: [CommandHandler("skip", location_step),
+                       MessageHandler(filters.TEXT & ~filters.COMMAND, location_step)],
             MEDIA: [MessageHandler(filters.PHOTO | filters.VIDEO, media_step)],
             BIO: [CommandHandler("skip", bio_step), MessageHandler(filters.TEXT & ~filters.COMMAND, bio_step)],
         },
