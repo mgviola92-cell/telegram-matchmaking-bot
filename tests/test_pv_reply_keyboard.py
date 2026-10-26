@@ -105,3 +105,23 @@ class DualGroupDeliveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('tg://user?id=22',show.await_args_list[0].kwargs["header"])
         self.assertNotIn('tg://user?id=11',show.await_args_list[1].kwargs["header"])
         remember.assert_awaited_once_with(17,22,"card",502)
+
+class SourceCardResultTests(unittest.IsolatedAsyncioTestCase):
+    async def test_rejected_result_updates_sender_group_without_exposing_recipient_account(self):
+        from unittest.mock import patch
+        sender={"display_name":"မောင်မောင်","bio":"","age":21,"location":None}
+        recipient={"display_name":"စုစု","bio":"","age":20,"location":None}
+        async def read_profile(uid,gid):
+            return sender if uid==11 else recipient
+        bot=SimpleNamespace(edit_message_caption=AsyncMock())
+        req={"id":17,"sender_id":11,"recipient_id":22,
+             "sender_group_id":-1007,"recipient_group_id":-1009,
+             "sender_card_message_id":501}
+        with patch.object(pv_matching.db,"get_profile",side_effect=read_profile), \
+             patch.object(handlers,"group_label",AsyncMock(return_value="Card Club")):
+            await pv_matching.update_sender_card_status(bot,req,"rejected")
+        kws=bot.edit_message_caption.await_args.kwargs
+        self.assertEqual(kws["chat_id"],-1007)
+        self.assertEqual(kws["message_id"],501)
+        self.assertIn("အဆင်မပြေခဲ့ဘူး",kws["caption"])
+        self.assertNotIn("tg://user?id=22",kws["caption"])
