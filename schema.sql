@@ -146,3 +146,17 @@ CREATE INDEX IF NOT EXISTS profile_presence_recent
 
 -- Optional coarse location for profile display; never infer GPS/device location.
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS location TEXT CHECK(length(location)<=50);
+
+-- PV matchmaking navigation. Only numeric IDs and cursor metadata are stored.
+CREATE TABLE IF NOT EXISTS pv_match_sessions (
+ user_id BIGINT PRIMARY KEY,
+ source_group_id BIGINT NOT NULL,
+ card_message_id BIGINT NOT NULL,
+ profile_keys JSONB NOT NULL DEFAULT '[]'::jsonb,
+ position INTEGER NOT NULL DEFAULT 0,
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS pv_match_sessions_active ON pv_match_sessions(updated_at);
+
+-- A second outward-facing card on the requester's group.
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS sender_card_message_id BIGINT;
