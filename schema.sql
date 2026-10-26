@@ -86,3 +86,20 @@ CREATE TABLE IF NOT EXISTS owner_qa_settings (
  test_group_id BIGINT NOT NULL,
  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Safely collapse legacy per-group profiles: preserve the most recently created
+-- public/active profile per user as the single canonical global profile.
+-- Provenance group_id remains a home group ID for request routing.
+WITH ranked AS (
+ SELECT user_id,group_id,
+ ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY
+   (NOT archived) DESC, is_public DESC, created_at DESC, group_id DESC) AS rn
+ FROM profiles
+)
+DELETE FROM profiles p USING ranked r
+ WHERE p.user_id=r.user_id AND p.group_id=r.group_id AND r.rn>1;
+UPDATE profiles SET is_public=true, archived=false WHERE NOT is_public OR archived;
+DROP INDEX IF EXISTS one_public_profile_per_user;
+CREATE UNIQUE INDEX IF NOT EXISTS one_global_profile_per_user ON profiles(user_id);
+-- Old sessions refer to legacy per-group IDs and their cursors must be regenerated.
+DELETE FROM browse_sessions WHERE public_mode=true;
