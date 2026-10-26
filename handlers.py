@@ -749,7 +749,8 @@ async def decide_callback(update, context):
     recipient_name = html.escape(recipient_profile["display_name"] if recipient_profile else "လက်ခံသူ")
     source_title = await group_label(context.bot,result["sender_group_id"])
     destination_title = await group_label(context.bot,result["recipient_group_id"])
-    announcement = (f"🎀 <b>{sender_name} နဲ့ {recipient_name} မိတ်ဆက်ခွင့်ရသွားပြီနော်!</b>\n"
+    announcement = (f"🎀 <b>{sender_name} နဲ့ {recipient_name}</b> · "
+                    f"{html.escape(say('request_accepted',recipient_id))}\n"
                     f"💌 {source_title} → {destination_title}")
 
     for gid in {result["sender_group_id"], result["recipient_group_id"]}:
