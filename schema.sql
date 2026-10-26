@@ -83,6 +83,29 @@ CREATE TABLE IF NOT EXISTS owner_qa_settings (
  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Snapshot existing profile metadata before collapsing duplicate group cards.
+-- Only Telegram file IDs are stored, never media bytes.
+CREATE TABLE IF NOT EXISTS profiles_legacy_backup (
+ user_id BIGINT NOT NULL,
+ group_id BIGINT NOT NULL,
+ display_name TEXT,
+ age SMALLINT,
+ adult_self_confirmed BOOLEAN,
+ bio TEXT,
+ media_type TEXT,
+ media_file_id TEXT,
+ archived BOOLEAN,
+ created_at TIMESTAMPTZ,
+ PRIMARY KEY(user_id,group_id)
+);
+INSERT INTO profiles_legacy_backup
+ (user_id,group_id,display_name,age,adult_self_confirmed,bio,media_type,
+  media_file_id,archived,created_at)
+SELECT user_id,group_id,display_name,age,adult_self_confirmed,bio,media_type,
+       media_file_id,archived,created_at
+FROM profiles
+ON CONFLICT(user_id,group_id) DO NOTHING;
+
 -- Safely collapse legacy per-group profiles: preserve the most recently created
 -- public/active profile per user as the single canonical global profile.
 -- Provenance group_id remains a home group ID for request routing.
