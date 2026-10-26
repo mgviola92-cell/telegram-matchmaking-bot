@@ -54,10 +54,11 @@ class SourceChecks(unittest.TestCase):
 
     def test_only_one_adult_confirmation_at_registration(self):
         handlers = (ROOT / "handlers.py").read_text(encoding="utf-8")
-        self.assertNotIn("async def age_step", handlers)
-        self.assertNotIn("d[\"age\"]", handlers)
+        self.assertIn("async def age_step", handlers)
         self.assertIn("adult_confirmed", handlers)
-        self.assertNotIn('return AGE', handlers)
+        self.assertIn("if not 18 <= age <= 120", handlers)
+        self.assertIn('return AGE', handlers)
+        self.assertIn("async def location_step", handlers)
 
     def test_private_invitation_commands_exist(self):
         source = (ROOT / "handlers.py").read_text(encoding="utf-8")
