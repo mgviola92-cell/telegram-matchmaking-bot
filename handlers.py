@@ -82,13 +82,14 @@ async def match_caption(bot, profile):
     """Append the profile owner's latest recorded group, without leaking private invites."""
     name_and_bio = caption(profile)
     place = await group_label(bot, profile["group_id"])
-    return f"{name_and_bio}\n\n🏡 <b>ရှိနေတဲ့ဝိုင်း —</b> {place}"
+    return f"{name_and_bio}\n\n🏡 Group - {place}"
 
 def media_caption(p, header=""):
     """On request cards the header already gives the name; do not repeat it."""
     if not header:
         return caption(p)
     bio = html.escape(p["bio"] or "")
+    # Leave a visible gap after the request heading on narrow mobile screens.
     return header + (f"\n{bio}" if bio else "")
 
 async def member(bot, group_id, user_id):
@@ -327,9 +328,15 @@ async def cleanup_request_group_messages(bot, request_id, recipient_id):
     card_id, prompt_id = refs["group_card_message_id"], refs["group_prompt_message_id"]
     if card_id:
         try:
-            await bot.edit_message_reply_markup(chat_id=gid,message_id=card_id,reply_markup=None)
+            await bot.delete_message(chat_id=gid,message_id=card_id)
         except TelegramError:
-            logging.info("Could not clear request card buttons for request %s",request_id)
+            # Telegram may reject deletion if the bot lacks delete permission
+            # or if the message is too old. Then at least remove the action.
+            try:
+                await bot.edit_message_reply_markup(
+                    chat_id=gid,message_id=card_id,reply_markup=None)
+            except TelegramError:
+                logging.info("Could not remove request card or buttons for request %s",request_id)
     if prompt_id:
         try:
             await bot.delete_message(chat_id=gid,message_id=prompt_id)
@@ -488,10 +495,11 @@ def nickname_link(nickname, user_id=None):
     return f'<a href="tg://user?id={int(user_id)}">{label}</a>'
 
 def request_card_title(sender, recipient, request_id, *, source_group="ပို့သူဝိုင်း", target_group="လက်ခံသူဝိုင်း", sender_id=None, recipient_id=None, **ignored):
-    from_name = nickname_link(sender["display_name"], sender_id)
+    # Do not reveal the sender's Telegram account until the request is accepted.
+    from_name = nickname_link(sender["display_name"])
     to_name = nickname_link(recipient["display_name"], recipient_id)
-    return (f"💌 <b>{from_name} → {to_name}</b> · #{int(request_id)}\n"
-            f"🎀 {source_group} → {target_group}\n")
+    return (f"💌 <b>{from_name} → {to_name}</b> · #{int(request_id)}\n\n"
+            f"🏡 Group - {source_group} → {target_group}\n")
 
 async def group_label(bot, group_id):
     """Clickable group names for public groups; plain names for private groups."""
