@@ -12,7 +12,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[1]
 class PrivateMatchContractTests(unittest.TestCase):
     def test_keyboard_labels(self):
         rows=pv_matching.KEYBOARD.keyboard
-        text=[button for row in rows for button in row]
+        text=[button.text for row in rows for button in row]
         self.assertEqual(text,[pv_matching.SKIP,pv_matching.REQUEST,pv_matching.STOP])
         self.assertTrue(pv_matching.KEYBOARD.resize_keyboard)
 
