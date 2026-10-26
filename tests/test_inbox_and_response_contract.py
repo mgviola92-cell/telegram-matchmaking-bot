@@ -24,9 +24,10 @@ class SourceChecks(unittest.TestCase):
 
     def test_contextual_response_hooks(self):
         source = (ROOT / "handlers.py").read_text(encoding="utf-8")
+        private_source = (ROOT / "pv_matching.py").read_text(encoding="utf-8")
         for event in ("profile_updated", "profile_deleted", "request_withdrawn",
                       "intro_published", "request_accepted", "match_in_progress"):
-            self.assertTrue(('say("'+event+'"' in source) or ("say('"+event+"'" in source), event)
+            self.assertTrue(('say("'+event+'"' in (source+private_source)) or ("say('"+event+"'" in (source+private_source)), event)
 
     def test_request_flow_requires_confirmation(self):
         source = (ROOT / "handlers.py").read_text(encoding="utf-8")
