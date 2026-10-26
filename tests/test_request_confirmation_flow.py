@@ -121,9 +121,9 @@ class RequestConfirmationTests(unittest.IsolatedAsyncioTestCase):
                             delete_message=AsyncMock())
         with patch.object(handlers.db,"get_request_group_messages",AsyncMock(return_value=refs)):
             await handlers.cleanup_request_group_messages(bot,9,11)
-        bot.edit_message_reply_markup.assert_awaited_once_with(
-            chat_id=-1007,message_id=55,reply_markup=None)
-        bot.delete_message.assert_awaited_once_with(chat_id=-1007,message_id=56)
+        bot.delete_message.assert_any_await(chat_id=-1007,message_id=55)
+        bot.delete_message.assert_any_await(chat_id=-1007,message_id=56)
+        bot.edit_message_reply_markup.assert_not_awaited()
 
     async def test_handoff_fallback_disables_prompt_button(self):
         from telegram.error import BadRequest
