@@ -353,7 +353,11 @@ async def start(update, context):
             return ConversationHandler.END
         keyboard = K([[B("💕 လက်ခံမယ်", callback_data=f"decide:{rid}:accepted")],
                       [B("💔 ငြင်းမယ်", callback_data=f"decide:{rid}:rejected")]])
-        await show_profile(context.bot, update.effective_chat.id, sender, keyboard)
+        recipient = await db.get_profile(req["recipient_id"],req["recipient_group_id"])
+        title = await request_header(context.bot,sender,
+            recipient or {"display_name":"ဒီဝိုင်းက မိတ်ဆွေ"},rid,
+            req["sender_group_id"],req["recipient_group_id"])
+        await show_profile(context.bot, update.effective_chat.id, sender, keyboard,header=title)
         await cleanup_request_group_messages(context.bot,rid,update.effective_user.id)
         return ConversationHandler.END
     if args and args[0].startswith("join_"):
@@ -480,7 +484,7 @@ async def group_label(bot, group_id):
         if username and username.replace("_","").isalnum():
             return f'<a href="https://t.me/{username}">{title}</a>'
         return title
-    except TelegramError:
+    except (TelegramError,AttributeError):
         return "ဒီဝိုင်း"
 
 async def request_header(bot, sender, recipient, request_id, source_group, target_group):
@@ -876,9 +880,14 @@ async def inbox_open(update, context):
         await q.message.delete()
     except TelegramError:
         logging.info("Inbox picker could not be deleted")
+    recipient = await db.get_profile(q.from_user.id,req["recipient_group_id"])
+    title = await request_header(context.bot,sender,
+        recipient or {"display_name":"ဒီဝိုင်းက မိတ်ဆွေ"},request_id,
+        req["sender_group_id"],req["recipient_group_id"])
     await show_profile(context.bot, q.from_user.id, sender,
         K([[B("💕 လက်ခံမယ်", callback_data=f"decide:{request_id}:accepted")],
-           [B("💔 ငြင်းမယ်", callback_data=f"decide:{request_id}:rejected")]]))
+           [B("💔 ငြင်းမယ်", callback_data=f"decide:{request_id}:rejected")]]),
+        header=title)
 
 async def outgoing(update, context):
     if update.effective_chat.type != "private":
