@@ -8,6 +8,7 @@ import os
 from telegram import InlineKeyboardButton as B, InlineKeyboardMarkup as K, InputMediaPhoto, InputMediaVideo
 from telegram.error import TelegramError
 from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, ChatMemberHandler, filters, ConversationHandler
+import pv_matching
 import repository as db
 from responses import say
 from notices import say_notice
@@ -366,6 +367,14 @@ async def start(update, context):
         await msg.reply_text(say("welcome", update.effective_user.id))
         return
     args = context.args
+    if args and args[0].startswith("match_"):
+        try:
+            source_group = int(args[0][6:])
+        except ValueError:
+            await msg.reply_text("🌷 ဒီလင့်ခ်လေး မမှန်တော့ဘူးနော်။")
+            return ConversationHandler.END
+        await pv_matching.begin(update,context,source_group)
+        return ConversationHandler.END
     if args and args[0].startswith("reply_"):
         try:
             rid = int(args[0][6:])
@@ -570,35 +579,26 @@ async def show_profile(bot, chat_id, p, keyboard, *, header="", reply_to_message
     return await bot.send_photo(chat_id, p["media_file_id"], **kw)
 
 async def match(update, context):
-    if update.effective_chat.type not in ("group", "supergroup"):
-        await update.message.reply_text("💗 /match ကို Group ထဲမှာ ဖွင့်ပေးနော်။")
+    """In groups, send each viewer a private deep-link, not a public profile card."""
+    if update.effective_chat.type not in ("group","supergroup"):
+        await update.effective_message.reply_text("💗 /match ကို Group ထဲမှာ စပေးနော်။")
         return
-    gid, uid = update.effective_chat.id, update.effective_user.id
+    gid,uid=update.effective_chat.id,update.effective_user.id
     if not (await db.group_settings(gid))["matchmaking"]:
-        await update.message.reply_text("🌷 ဒီဝိုင်းရဲ့ လူတောင်းပွဲကို Admin က ခဏနားထားတယ်နော်။")
+        await update.effective_message.reply_text("🌷 ဒီ Group မှာ လူတောင်းပွဲကို ခဏပိတ်ထားတယ်နော်။")
         return
-    own = await db.get_profile(uid, gid)
-    if not own:
-        me = await context.bot.get_me()
-        url = f"https://t.me/{me.username}?start=join_{gid}"
-        await update.message.reply_text(say("register_invite", uid), reply_markup=K([[B("💗 Profile လေး ဖန်တီးမယ်", url=url)]]))
+    if not await db.get_profile(uid,gid):
+        me=await context.bot.get_me()
+        await update.effective_message.reply_text(say("register_invite",uid),
+            reply_markup=K([[B("💗 Profile လေး ဖန်တီးမယ်",
+                url=f"https://t.me/{me.username}?start=join_{gid}")]]))
         return
     await db.record_profile_presence(uid,gid)
-    existing = await db.active_browse_session(uid, gid)
-    if existing:
-        await update.message.reply_text(say("match_in_progress",uid))
-        return
-    results = await db.browse_profiles(uid, gid, limit=50)
-    if not results:
-        await update.message.reply_text(say("no_matches", uid))
-        return
-    p = results[0]
-    sent = await show_profile(context.bot, gid, p, match_buttons(uid,gid,p,0,len(results)),
-        full_caption=await match_caption(context.bot,p))
-    keys = [[row["user_id"],row["group_id"]] for row in results]
-    await db.save_browse_session(uid,gid,sent.message_id,keys)
-    await db.mark_profile_viewed(uid,gid,p['user_id'],p['group_id'])
-    schedule_browse_timeout(context.bot,uid,gid,sent.message_id)
+    me=await context.bot.get_me()
+    await update.effective_message.reply_text(
+        "🎀 Profile လှည့်ကြည့်တာကို Bot Private မှာပဲ လုပ်ကြမယ်နော်။",
+        reply_markup=K([[B("💗 Private မှာ လှည့်ကြည့်မယ်",
+            url=f"https://t.me/{me.username}?start=match_{gid}")]]))
 
 
 def match_buttons(uid, gid, p, position, total):
@@ -1447,6 +1447,10 @@ def handlers():
             CallbackQueryHandler(browse_callback, pattern=r"^browse:"),
             CallbackQueryHandler(ask_callback, pattern=r"^ask:"),
             CallbackQueryHandler(ask_confirm_callback, pattern=r"^ask_(confirm:|cancel:)"), CallbackQueryHandler(reply_callback, pattern=r"^reply:"),
+            CallbackQueryHandler(pv_matching.confirm,pattern=r"^pvreq"),
+            MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND &
+                filters.Regex(r"^(👎 ကျော်မယ်|💌 တောင်းမယ်|❌ ပွဲသိမ်းမယ်)$"),
+                pv_matching.handle_reply),
             CallbackQueryHandler(decide_callback, pattern=r"^decide:"),
             CommandHandler("inbox", inbox), CommandHandler("outgoing", outgoing),
             CommandHandler("profile", profile), CommandHandler("settings", settings),
