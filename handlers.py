@@ -464,31 +464,29 @@ async def cancel(update, context):
     await update.message.reply_text("နောက်မှ ပြန်လုပ်လို့ရပါတယ်နော် 💗")
     return ConversationHandler.END
 
-def request_card_title(sender, recipient, request_id, *, recipient_id=None, username=None):
-    """Short public request caption with a clickable mention of its recipient."""
+def request_card_title(sender, recipient, request_id, *, source_group="ပို့သူဝိုင်း", target_group="လက်ခံသူဝိုင်း", **ignored):
+    """Only profile nicknames are shown, never Telegram account links."""
     from_name = html.escape(sender["display_name"][:40])
     to_name = html.escape(recipient["display_name"][:40])
-    if recipient_id is not None:
-        # Telegram HTML text mention works for users without public usernames too.
-        link = f"tg://user?id={int(recipient_id)}"
-        if username and username.lstrip("@").replace("_", "").isalnum():
-            username = username.lstrip("@")
-            link = "https://t.me/" + username
-            to_name += " (@" + html.escape(username) + ")"
-        to_name = f'<a href="{html.escape(link, quote=True)}">{to_name}</a>'
-    return f"💌 <b>{from_name} → {to_name}</b> · လူတောင်းစာ #{int(request_id)}\n"
+    return (f"💌 <b>{from_name} → {to_name}</b> · #{int(request_id)}\n"
+            f"🎀 {source_group} → {target_group}\n")
 
-
-async def request_recipient_username(bot, group_id, user_id):
-    """Look up a username if one exists; otherwise HTML mention uses numeric ID."""
+async def group_label(bot, group_id):
+    """Clickable group names for public groups; plain names for private groups."""
     try:
-        chat_member = await bot.get_chat_member(group_id, user_id)
-        return getattr(chat_member.user, "username", None)
+        group = await bot.get_chat(group_id)
+        title = html.escape((getattr(group,"title",None) or "ဒီဝိုင်း")[:48])
+        username = getattr(group,"username",None)
+        if username and username.replace("_","").isalnum():
+            return f'<a href="https://t.me/{username}">{title}</a>'
+        return title
     except TelegramError:
-        return None
+        return "ဒီဝိုင်း"
 
-
-
+async def request_header(bot, sender, recipient, request_id, source_group, target_group):
+    return request_card_title(sender, recipient, request_id,
+        source_group=await group_label(bot,source_group),
+        target_group=await group_label(bot,target_group))
 
 async def show_profile(bot, chat_id, p, keyboard, *, header="", reply_to_message_id=None):
     kw = {"caption": media_caption(p, header), "parse_mode": "HTML", "reply_markup": keyboard}
@@ -677,9 +675,7 @@ async def ask_confirm_callback(update, context):
     try:
         card = await show_profile(context.bot, target_group, source,
             K([[B("💌 အဖြေပေးမယ်", callback_data=f"reply:{result['id']}:{target_user}")]]),
-            header=request_card_title(
-                source,target,result["id"],recipient_id=target_user,
-                username=await request_recipient_username(context.bot,target_group,target_user)),
+            header=await request_header(context.bot,source,target,result["id"],source_group,target_group),
             reply_to_message_id=session["message_id"] if source_group == target_group else None)
         await db.remember_request_group_message(result["id"],target_user,"card",card.message_id)
     except TelegramError:
@@ -743,9 +739,15 @@ async def decide_callback(update, context):
         except TelegramError:
             logging.info("Sender private chat unavailable for rejection notice")
         return
-    a = f'<a href="tg://user?id={sender_id}">မိတ်ဆက်ဖိတ်ခေါ်သူ</a>'
-    b = f'<a href="tg://user?id={recipient_id}">လက်ခံသူ</a>'
-    announcement = f"💕 <b>{html.escape(say('request_accepted',recipient_id))}</b>\n{a} နဲ့ {b} တို့ မိတ်ဆက်ခွင့်ရသွားပြီနော် 💌"
+    sender_profile = await db.get_profile(sender_id,result["sender_group_id"])
+    recipient_profile = await db.get_profile(recipient_id,result["recipient_group_id"])
+    sender_name = html.escape(sender_profile["display_name"] if sender_profile else "မိတ်ဆက်သူ")
+    recipient_name = html.escape(recipient_profile["display_name"] if recipient_profile else "လက်ခံသူ")
+    source_title = await group_label(context.bot,result["sender_group_id"])
+    destination_title = await group_label(context.bot,result["recipient_group_id"])
+    announcement = (f"🎀 <b>{sender_name} နဲ့ {recipient_name} မိတ်ဆက်ခွင့်ရသွားပြီနော်!</b>\n"
+                    f"💌 {source_title} → {destination_title}")
+
     for gid in {result["sender_group_id"], result["recipient_group_id"]}:
         try:
             await context.bot.send_message(gid, announcement, parse_mode="HTML")
@@ -755,7 +757,7 @@ async def decide_callback(update, context):
         try:
             await context.bot.send_message(
                 user_id,
-                f'💗 နှစ်ဖက်လုံး သဘောတူပြီးပြီနော်။ <a href="tg://user?id={other_id}">ဒီမှာ မိတ်ဆက်စကား စပြောနိုင်ပြီ 💌</a>',
+                f"💗 မိတ်ဆက်ဖို့ နှစ်ဖက်လုံး သဘောတူလိုက်ပြီနော်။ {recipient_name if user_id == sender_id else sender_name} က အဖြေပေးပြီးပြီ။",
                 parse_mode="HTML")
         except TelegramError:
             logging.info("Private contact notice could not be delivered")
@@ -1221,9 +1223,7 @@ async def intro_confirm_callback(update, context):
     try:
         card = await show_profile(context.bot,gid,source,
             K([[B("💕 အဖြေပေးမယ်",callback_data=f"reply:{result['id']}:{target_id}")]]),
-            header=request_card_title(
-                source,target,result["id"],recipient_id=target_id,
-                username=await request_recipient_username(context.bot,gid,target_id)),
+            header=await request_header(context.bot,source,target,result["id"],gid,gid),
             reply_to_message_id=getattr(getattr(q.message,"reply_to_message",None),"message_id",None))
         await db.remember_request_group_message(result["id"],target_id,"card",card.message_id)
     except TelegramError:
