@@ -267,7 +267,7 @@ async def home_callback(update, context):
                 "🌷 မိတ်ဆက်ကတ် မရှိသေးဘူးနော်။ Group ထဲမှာ /register နဲ့ စတင်နိုင်တယ်။",
                 K([[B("💗 ပင်မစာမျက်နှာ",callback_data="home:main")]]))
             return
-        buttons = [[B(("🌍 " if p["is_public"] else "💗 ") + p["display_name"][:25],
+        buttons = [[B("🎀 " + p["display_name"][:25],
                       callback_data=f"profile_view:{p['group_id']}")] for p in rows]
         buttons.append([B("💗 ပင်မစာမျက်နှာ", callback_data="home:main")])
         await show_menu_page(q,"🎀 ကိုယ့်မိတ်ဆက်ကတ်လေး ရွေးကြည့်မယ်နော်။",K(buttons))
@@ -519,14 +519,14 @@ async def match(update, context):
         await update.message.reply_text(say("no_matches", uid))
         return
     p = results[0]
-    sent = await show_profile(context.bot, gid, p, match_buttons(uid,gid,p,0,len(results),False))
+    sent = await show_profile(context.bot, gid, p, match_buttons(uid,gid,p,0,len(results)))
     keys = [[row["user_id"],row["group_id"]] for row in results]
-    await db.save_browse_session(uid,gid,sent.message_id,False,keys)
+    await db.save_browse_session(uid,gid,sent.message_id,keys)
     await db.mark_profile_viewed(uid,gid,p['user_id'],p['group_id'])
     schedule_browse_timeout(context.bot,uid,gid,sent.message_id)
 
 
-def match_buttons(uid, gid, p, position, total, public=False):
+def match_buttons(uid, gid, p, position, total):
     return K([
         [B("⬅️ အရင်လူလေး", callback_data=f"browse:{uid}:{gid}:-1"),
          B("➡️ နောက်လူလေး", callback_data=f"browse:{uid}:{gid}:1")],
@@ -534,13 +534,13 @@ def match_buttons(uid, gid, p, position, total, public=False):
            callback_data=f"ask:{uid}:{gid}:{p['user_id']}:{p['group_id']}")],
     ])
 
-async def edit_browse_card(q, uid, gid, p, pos, count, public):
+async def edit_browse_card(q, uid, gid, p, pos, count):
     kwargs = {"caption": caption(p), "parse_mode": "HTML"}
     if p["media_type"] == "video":
         media = InputMediaVideo(p["media_file_id"], **kwargs)
     else:
         media = InputMediaPhoto(p["media_file_id"], **kwargs)
-    await q.edit_message_media(media=media, reply_markup=match_buttons(uid,gid,p,pos,count,public))
+    await q.edit_message_media(media=media, reply_markup=match_buttons(uid,gid,p,pos,count))
 
 async def browse_callback(update, context):
     q = update.callback_query
@@ -580,7 +580,7 @@ async def browse_callback(update, context):
         await q.answer()
     schedule_browse_timeout(context.bot,uid,gid,q.message.message_id)
     try:
-        await edit_browse_card(q,uid,gid,p,session["position"],len(keys),session["public_mode"])
+        await edit_browse_card(q,uid,gid,p,session["position"],len(keys))
         await db.mark_profile_viewed(uid,gid,p["user_id"],p["group_id"])
     except TelegramError:
         logging.exception("Failed to edit browse card")
@@ -956,7 +956,7 @@ async def profile(update, context):
         f"🎀 <b>ကိုယ့်မိတ်ဆက်ကတ်</b>\nတစ်ခါလုပ်ထားတာနဲ့ ဝိုင်းတိုင်းမှာ သုံးလို့ရပြီနော်။",
         parse_mode="HTML", reply_markup=K(buttons))
 
-def profile_actions(group_id, public=True):
+def profile_actions(group_id):
     return K([
         [B("✏️ နာမည်ပြင်မယ်",callback_data=f"profile_edit:{group_id}:display_name"),
          B("💬 Bio ပြင်မယ်",callback_data=f"profile_edit:{group_id}:bio")],
@@ -980,7 +980,7 @@ async def profile_view(update, context):
         await q.answer(say_notice("missing_profile", q.from_user.id), show_alert=True)
         return
     await q.answer()
-    actions = profile_actions(group_id, bool(p["is_public"]))
+    actions = profile_actions(group_id)
     # Telegram cannot turn a text message into a photo/video by editing it.
     # Delete the old inline list before sending a media profile card.
     try:
