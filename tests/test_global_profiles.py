@@ -31,6 +31,15 @@ class GlobalProfileContract(unittest.TestCase):
         self.assertNotIn("is_public",repo)
         self.assertIn("WHERE user_id=$1 AND NOT archived",repo)
 
+
+    def test_routing_group_is_separate_from_profile_identity(self):
+        repo=(ROOT/"repository.py").read_text(encoding="utf-8")
+        self.assertIn("LEFT JOIN LATERAL",repo)
+        self.assertIn("profile_presence",repo)
+        self.assertIn("COALESCE(venue.group_id,p.group_id)",repo)
+        schema=(ROOT/"schema.sql").read_text(encoding="utf-8")
+        self.assertIn("CREATE TABLE IF NOT EXISTS profile_presence",schema)
+
     def test_pre_migration_profile_metadata_is_preserved(self):
         schema=(ROOT/"schema.sql").read_text(encoding="utf-8")
         self.assertIn("profiles_legacy_backup",schema)
@@ -47,7 +56,9 @@ class GlobalProfileRegistrationTest(unittest.IsolatedAsyncioTestCase):
         update=SimpleNamespace(effective_chat=SimpleNamespace(id=-1008,type="supergroup"),
             effective_user=user,message=msg)
         with patch.object(handlers.db,"group_settings",AsyncMock(return_value={"registration":True})), \
-             patch.object(handlers.db,"get_profile",AsyncMock(return_value={"user_id":11,"group_id":-1007})):
+             patch.object(handlers.db,"get_profile",AsyncMock(return_value={"user_id":11,"group_id":-1007})), \
+             patch.object(handlers.db,"record_profile_presence",AsyncMock()) as marker:
             await handlers.register(update,SimpleNamespace())
+        marker.assert_awaited_once_with(11,-1008)
         self.assertIn("/match",str(msg.reply_text.await_args))
         self.assertNotIn("join_",str(msg.reply_text.await_args))
