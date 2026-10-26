@@ -22,40 +22,28 @@ class MatchCardCopyTests(unittest.TestCase):
 
     def test_match_buttons_have_conversational_burmese(self):
         profile = {"user_id":22,"group_id":-1009}
-        keyboard = handlers.match_buttons(11,-1007,profile,0,2,False)
+        keyboard = handlers.match_buttons(11,-1007,profile,0,2)
         labels = " ".join(button.text for line in keyboard.inline_keyboard for button in line)
-        self.assertIn("ဝိုင်းကျော်", labels)
+        self.assertNotIn("ဝိုင်းကျော်", labels)
         self.assertIn("မိတ်ဆက်ခွင့်", labels)
         self.assertNotIn("Group Only", labels)
 
-    def test_request_card_uses_recipient_username(self):
-        msg = handlers.request_card_title(
+    def test_request_card_shows_both_nicknames_and_group_names(self):
+        msg=handlers.request_card_title(
             {"display_name":"မောင်မောင်"},{"display_name":"စုစု"},123,
-            recipient_id=22,username="su_su")
-        self.assertIn("https://t.me/su_su",msg)
-        self.assertIn("@su_su",msg)
+            source_group="ဝိုင်း A",target_group="ဝိုင်း B")
+        self.assertIn("မောင်မောင်",msg)
         self.assertIn("စုစု",msg)
+        self.assertIn("ဝိုင်း A → ဝိုင်း B",msg)
         self.assertIn("#123",msg)
+        self.assertNotIn("t.me/",msg)
+        self.assertNotIn("@",msg)
 
-    def test_no_username_still_mentions_target_by_id(self):
-        msg = handlers.request_card_title(
-            {"display_name":"မောင်မောင်"},{"display_name":"စုစု"},123,
-            recipient_id=22)
-        self.assertIn('href="tg://user?id=22"',msg)
-        self.assertNotIn("@None",msg)
-
-    def test_names_are_html_escaped_and_username_is_safe(self):
-        msg = handlers.request_card_title(
-            {"display_name":"<sender>"},{"display_name":"S&U"},8,
-            recipient_id=22,username="susu")
+    def test_request_names_escape_html(self):
+        msg=handlers.request_card_title(
+            {"display_name":"<sender>"},{"display_name":"S&U"},8)
         self.assertIn("&lt;sender&gt;",msg)
         self.assertIn("S&amp;U",msg)
-        self.assertIn("https://t.me/susu",msg)
-        invalid = handlers.request_card_title(
-            {"display_name":"A"},{"display_name":"B"},9,
-            recipient_id=22,username="bad_link&bad")
-        self.assertIn("tg://user?id=22",invalid)
-        self.assertNotIn("https://t.me/bad",invalid)
 
     def test_request_profile_does_not_repeat_sender_name(self):
         card = handlers.media_caption(
@@ -65,13 +53,14 @@ class MatchCardCopyTests(unittest.TestCase):
         self.assertIn("ဟယ်လိုပါ",card)
 
 
-class MentionLookupTests(unittest.IsolatedAsyncioTestCase):
-    async def test_existing_username_returned(self):
-        bot=SimpleNamespace(get_chat_member=AsyncMock(
-            return_value=SimpleNamespace(user=SimpleNamespace(username="su_su"))))
-        self.assertEqual(await handlers.request_recipient_username(bot,-1007,22),"su_su")
+class GroupLabelTests(unittest.IsolatedAsyncioTestCase):
+    async def test_public_group_has_clickable_group_title(self):
+        bot=SimpleNamespace(get_chat=AsyncMock(
+            return_value=SimpleNamespace(title="Anime Club",username="anime_club")))
+        self.assertEqual(await handlers.group_label(bot,-1007),
+            '<a href="https://t.me/anime_club">Anime Club</a>')
 
-    async def test_missing_username_uses_id_mention(self):
-        bot=SimpleNamespace(get_chat_member=AsyncMock(
-            return_value=SimpleNamespace(user=SimpleNamespace(username=None))))
-        self.assertIsNone(await handlers.request_recipient_username(bot,-1007,22))
+    async def test_private_group_shows_title_without_invite_link(self):
+        bot=SimpleNamespace(get_chat=AsyncMock(
+            return_value=SimpleNamespace(title="Private Club",username=None)))
+        self.assertEqual(await handlers.group_label(bot,-1007),"Private Club")
