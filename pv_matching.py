@@ -327,3 +327,30 @@ async def confirm(update,context):
     # Keep the current preview so another target can be reached via Skip.
     await set_position(uid,session["card_message_id"],session["position"])
     reset_timeout(context.bot,uid,session["card_message_id"])
+
+async def update_sender_card_status(bot,request,action):
+    """Update public source-side card after recipient answers in PV.
+
+    If there is no source card (legacy request), leave it unchanged.
+    Do not expose a new Telegram account link on rejection.
+    """
+    msgid=request.get("sender_card_message_id")
+    if not msgid or action not in ("accepted","rejected"):
+        return
+    from handlers import media_caption,group_label
+    sender=await db.get_profile(request["sender_id"],request["sender_group_id"])
+    recipient=await db.get_profile(request["recipient_id"],request["recipient_group_id"])
+    if not sender or not recipient:
+        return
+    source=await group_label(bot,request["sender_group_id"])
+    target=await group_label(bot,request["recipient_group_id"])
+    quotes=request_quotes(sender,recipient,request["id"],source,target,
+             sender_id=request["sender_id"],recipient_id=request["recipient_id"],
+             sender_side=True)
+    status="💕 နှစ်ဖက်သဘောတူလိုက်ပြီနော်။" if action=="accepted" else "🌷 ဒီတစ်ခေါက်တော့ အဆင်မပြေခဲ့ဘူးနော်။"
+    try:
+        await bot.edit_message_caption(
+             chat_id=request["sender_group_id"],message_id=msgid,
+             caption=media_caption(recipient,quotes)+"\n\n"+status,parse_mode="HTML")
+    except TelegramError:
+        logging.info("Cannot update sender-side card for request %s",request["id"])
