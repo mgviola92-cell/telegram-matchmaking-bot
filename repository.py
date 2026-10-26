@@ -2,15 +2,16 @@
 from datetime import datetime, timezone, timedelta
 from db import pool
 
-async def upsert_profile(user_id, group_id, name, media_type, file_id, bio=None):
+async def upsert_profile(user_id, group_id, name, media_type, file_id, bio=None, *, age=None, location=None):
     p = await pool()
     async with p.acquire() as c:
-        return await c.fetchrow("""INSERT INTO profiles(user_id,group_id,display_name,age,bio,media_type,media_file_id,archived,adult_self_confirmed)
-            VALUES($1,$2,$3,NULL,$4,$5,$6,false,true)
-            ON CONFLICT(user_id) DO UPDATE SET display_name=excluded.display_name, age=NULL,
-            bio=excluded.bio,media_type=excluded.media_type,media_file_id=excluded.media_file_id,archived=false,
+        return await c.fetchrow("""INSERT INTO profiles(user_id,group_id,display_name,age,bio,media_type,media_file_id,archived,adult_self_confirmed,location)
+            VALUES($1,$2,$3,$7,$4,$5,$6,false,true,$8)
+            ON CONFLICT(user_id) DO UPDATE SET display_name=excluded.display_name, age=COALESCE(excluded.age,profiles.age),
+            bio=excluded.bio,media_type=excluded.media_type,media_file_id=excluded.media_file_id,
+            location=COALESCE(excluded.location,profiles.location),archived=false,
             adult_self_confirmed=true
-            RETURNING *""",user_id,group_id,name,bio,media_type,file_id)
+            RETURNING *""",user_id,group_id,name,bio,media_type,file_id,age,location)
 
 async def get_profile(user_id, group_id):
     p = await pool()
@@ -29,7 +30,7 @@ async def browse_profiles(viewer_id, group_id, limit=50):
     p = await pool()
     async with p.acquire() as c:
         return await c.fetch("""SELECT p.user_id,COALESCE(venue.group_id,p.group_id) AS group_id,
-                   p.display_name,p.age,p.bio,p.media_type,p.media_file_id
+                   p.display_name,p.age,p.location,p.bio,p.media_type,p.media_file_id
             FROM profiles p
             LEFT JOIN LATERAL (
                 SELECT group_id FROM profile_presence
@@ -119,7 +120,7 @@ async def user_profiles(user_id):
 
 async def update_profile_text(user_id, group_id, field, value):
     """Only allowlisted text fields, never user-supplied SQL identifiers."""
-    columns = {"display_name": "display_name", "bio": "bio"}
+    columns = {"display_name": "display_name", "bio": "bio", "location": "location", "age": "age"}
     if field not in columns:
         raise ValueError("Unsupported profile field")
     p = await pool()
