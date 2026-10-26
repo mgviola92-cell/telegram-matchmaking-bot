@@ -2,7 +2,7 @@
 
 ## Identity and tone
 - Telegram native bot (group chat + private), no Mini App.
-- Natural, playful Burmese; nicknames from the profile's display_name, NOT Telegram account links or @usernames in user-facing request cards and acceptance messages.
+- Natural, playful Burmese; nicknames from the profile's display_name. Where a Telegram account link is useful, the clickable label MUST be the profile nickname, never a generic role label or a visible @username.
 - Dynamic responses: 14 combination-based event families in responses.py and 26 curated six-line notice families in notices.py. Validation rules remain fixed while phrasing varies.
 
 ## One global profile per Telegram user
@@ -23,10 +23,10 @@
   "💌 <sender nickname> → <recipient nickname> · #ID"
   "🎀 <source group title> → <recipient group title>"
 - When a group has a public @username, the **group title** is a clickable link. Private groups show their title only; no invite link is auto-created.
-- No Telegram personal username or raw account link is displayed in request headers, private reply cards, or accept announcements.
+- Personal account links are clickable nickname labels (Telegram user-ID mention internally), with no visible raw user ID, @username, or generic 'sender/recipient' role label. Applies to group request cards, private reply cards, acceptance, and rejection notices.
 - Only the intended recipient may open the request's private response. Group card buttons and handoff prompts are cleaned when opening a private reply or deciding.
 - Pending expires in 24h; 12h cooldown after rejection, 24h after acceptance; sender may withdraw a pending request. Duplicate pending requests to the same person are prevented.
-- Accept announcements go to the source and destination groups (once if same). Both private messages use nicknames and a short positive notice; no account link is exposed.
+- Accept announcements go to source and destination groups (once if same) and use linked nicknames. Both private notices use clickable linked nicknames; rejected-request sender notices also show the recipient's nickname and both group names.
 - Rejection can include an optional reason shared only after explicit confirmation.
 
 ## Private and group controls
