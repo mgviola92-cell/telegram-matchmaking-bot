@@ -71,6 +71,21 @@ class GroupLabelTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await handlers.group_label(bot,-1007),
             '<a href="https://t.me/anime_club">Anime Club</a>')
 
+    async def test_match_caption_has_group_without_repeating_bio(self):
+        bot=SimpleNamespace(get_chat=AsyncMock(
+            return_value=SimpleNamespace(title="Card Club",username=None)))
+        profile={"display_name":"မောင်မောင်","bio":"မင်္ဂလာပါ",
+                 "group_id":-1007}
+        title=await handlers.match_caption(bot,profile)
+        self.assertIn("Card Club",title)
+        self.assertEqual(title.count("မင်္ဂလာပါ"),1)
+
+    async def test_match_caption_escapes_private_group_title(self):
+        bot=SimpleNamespace(get_chat=AsyncMock(
+            return_value=SimpleNamespace(title="A&B Club",username=None)))
+        title=await handlers.match_caption(bot,{"display_name":"မောင်မောင်","bio":"", "group_id":-1007})
+        self.assertIn("A&amp;B Club",title)
+
     async def test_private_group_shows_title_without_invite_link(self):
         bot=SimpleNamespace(get_chat=AsyncMock(
             return_value=SimpleNamespace(title="Private Club",username=None)))
