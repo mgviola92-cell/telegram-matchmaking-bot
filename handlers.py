@@ -1140,8 +1140,8 @@ async def profile_edit_text(update, context):
             value = int(value)
         except ValueError:
             value = 0
-        if not 18 <= value <= 120:
-            await update.message.reply_text("🌷 အသက် ၁၈ နှစ်ကနေ ၁၂၀ နှစ်အတွင်းပဲ ရေးပေးနော်။")
+        if not 0 <= value <= 999999999 or not update.message.text.strip().isdecimal():
+            await update.message.reply_text("🌷 0 ကနေ 999999999 အတွင်း ဂဏန်းပဲ ရေးပေးနော်။")
             return EDIT_TEXT
     if field == "location":
         value = "" if value == "/skip" else value
