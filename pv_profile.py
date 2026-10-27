@@ -10,7 +10,7 @@ import repository as db
 import pv_matching
 
 NAME="✏️ နာမည်ပြင်မယ်"
-AGE="🎂 အသက်ပြင်မယ်"
+AGE="🎲 ဂဏန်းပြင်မယ်"
 CITY="🏙 မြို့/တိုင်းပြင်မယ်"
 BIO="💬 Bio ပြင်မယ်"
 MEDIA="📸 ပုံ/Video ပြင်မယ်"
