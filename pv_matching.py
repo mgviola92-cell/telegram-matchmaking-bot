@@ -8,6 +8,7 @@ import html
 import json
 import logging
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
 from db import pool
@@ -21,6 +22,11 @@ MAIN_HELP = "🌷 အသုံးပြုပုံ"
 MAIN_KEYBOARD = ReplyKeyboardMarkup([
     [MAIN_SEARCH], [MAIN_PROFILE, MAIN_INBOX],
     [MAIN_OUTGOING, MAIN_HELP]], resize_keyboard=True, is_persistent=True)
+
+CONFIRM_SEND = "💌 တကယ်တောင်းမယ်"
+CONFIRM_CANCEL = "🌷 စိတ်ပြောင်းပြီ"
+CONFIRM_KEYBOARD = ReplyKeyboardMarkup([[CONFIRM_SEND, CONFIRM_CANCEL]],
+                                       resize_keyboard=True,is_persistent=True)
 
 SKIP = "👎 ကျော်မယ်"
 REQUEST = "💌 တောင်းမယ်"
@@ -224,6 +230,24 @@ async def handle_reply(update,context):
         await update.message.delete()
     except TelegramError:
         pass
+    if text in (CONFIRM_SEND,CONFIRM_CANCEL):
+        details=context.user_data.pop("pv_match_confirm",None)
+        if not details:
+            await context.bot.send_message(uid,"🌷 ဒီအတည်ပြုချက်လေး သက်တမ်းကုန်သွားပြီနော်။",reply_markup=KEYBOARD)
+            return
+        if text==CONFIRM_CANCEL:
+            await context.bot.send_message(uid,"🌷 မပို့တော့ဘူးနော်။",reply_markup=KEYBOARD)
+            return
+        async def notify(text=None,**kwargs):
+            if text:
+                await context.bot.send_message(uid,text,reply_markup=KEYBOARD)
+        q=SimpleNamespace(
+            data=f"pvreq:{uid}:{details['source_group']}:{details['target_id']}:{details['target_group']}",
+            from_user=update.effective_user,
+            message=SimpleNamespace(chat=update.effective_chat),
+            answer=notify,edit_message_text=notify)
+        await confirm(SimpleNamespace(callback_query=q),context)
+        return
     session=await get_session(uid)
     if not session:
         await update.effective_chat.send_message("🌷 ကြည့်နေတဲ့ကတ်လေး သက်တမ်းကုန်သွားပြီနော်။ Group ထဲက /match နဲ့ ပြန်စပါ။",
@@ -248,12 +272,12 @@ async def handle_reply(update,context):
         if not target or not source:
             await context.bot.send_message(uid,"🌷 ဒီ Profile လေး မရှိတော့ဘူးနော်။ ကျော်ကြည့်ပေးပါ။")
             return
+        context.user_data["pv_match_confirm"]={
+            "source_group":session["source_group_id"],
+            "target_id":key[0],"target_group":key[1]}
         await context.bot.send_message(uid,
             f"💌 <b>{html.escape(source['display_name'])}</b> က <b>{html.escape(target['display_name'])}</b> ဆီ တောင်းမလား?",
-            parse_mode="HTML",reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("💌 တကယ်တောင်းမယ်",
-                  callback_data=f"pvreq:{uid}:{session['source_group_id']}:{key[0]}:{key[1]}")],
-                [InlineKeyboardButton("🌷 စိတ်ပြောင်းပြီ",callback_data="pvreq_cancel")]]))
+            parse_mode="HTML",reply_markup=CONFIRM_KEYBOARD)
         await set_position(uid,session["card_message_id"],session["position"])
         reset_timeout(context.bot,uid,session["card_message_id"])
         return
