@@ -101,7 +101,8 @@ class PrivateMenuTests(unittest.IsolatedAsyncioTestCase):
         result = await handlers.start(u,ctx)
         self.assertEqual(result,handlers.ConversationHandler.END)
         markup = msg.reply_text.await_args.kwargs["reply_markup"]
-        self.assertGreaterEqual(len(markup.inline_keyboard),3)
+        self.assertGreaterEqual(len(markup.keyboard),3)
+        self.assertTrue(markup.is_persistent)
 
     async def test_private_register_shows_menu(self):
         msg = SimpleNamespace(reply_text=AsyncMock())
