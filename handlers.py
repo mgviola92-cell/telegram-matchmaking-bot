@@ -1062,7 +1062,7 @@ async def profile(update, context):
 def profile_actions(group_id):
     return K([
         [B("✏️ နာမည်ပြင်မယ်",callback_data=f"profile_edit:{group_id}:display_name"),
-         B("🎂 အသက်ပြင်မယ်",callback_data=f"profile_edit:{group_id}:age")],
+         B("🎲 ဂဏန်းပြင်မယ်",callback_data=f"profile_edit:{group_id}:age")],
         [B("🏙 မြို့/တိုင်းပြင်မယ်",callback_data=f"profile_edit:{group_id}:location"),
          B("💬 Bio ပြင်မယ်",callback_data=f"profile_edit:{group_id}:bio")],
         [B("📸 ပုံ/Video ပြင်မယ်",callback_data=f"profile_edit:{group_id}:media")],
@@ -1116,7 +1116,7 @@ async def profile_edit_begin(update, context):
         return EDIT_MEDIA
     await q.message.reply_text(
         "💗 နာမည်အသစ်လေး ရေးပေးနော်။" if field == "display_name"
-        else "🎂 အသက် ၁၈–၁၂၀ အတွင်း ရိုက်ပေးနော်။" if field == "age"
+        else "🎲 Profile မှာပြချင်တဲ့ ဂဏန်းကို ရိုက်ပေးနော်။" if field == "age"
         else "🏙 မြို့/တိုင်းနာမည်ပဲ ရေးပေးနော်။ မဖော်ပြချင်ရင် /skip လို့ပို့ပါ။" if field == "location"
         else "💬 Bio အသစ်လေး ရေးပေးနော်။ မထည့်ချင်ရင် /skip လို့ပို့ပါ။")
     return EDIT_TEXT
