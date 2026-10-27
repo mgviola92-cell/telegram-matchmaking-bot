@@ -176,3 +176,12 @@ class DirectSearchPickerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(begin.await_args.args[2],-1007123)
         msg.reply_text.assert_not_awaited()
 
+
+class MatchRequestReplyConfirmationTests(unittest.TestCase):
+    def test_request_confirmation_is_reply_keyboard(self):
+        labels=[b.text for row in pv_matching.CONFIRM_KEYBOARD.keyboard for b in row]
+        self.assertEqual(labels,[pv_matching.CONFIRM_SEND,pv_matching.CONFIRM_CANCEL])
+        self.assertTrue(pv_matching.CONFIRM_KEYBOARD.is_persistent)
+        source=(ROOT/"pv_matching.py").read_text(encoding="utf-8")
+        self.assertIn('reply_markup=CONFIRM_KEYBOARD',source)
+        self.assertIn('context.user_data["pv_match_confirm"]',source)
