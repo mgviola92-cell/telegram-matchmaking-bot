@@ -85,7 +85,7 @@ async def respond(update,context):
         state["mode"]="edit"
         state["field"]=field
         hints={"display_name":"💗 နာမည်အသစ်ကို ရေးပေးနော်။",
-               "age":"🎂 အသက် ၁၈–၁၂၀ အတွင်း ရေးပေးနော်။",
+               "age":"🎲 Profile မှာပြချင်တဲ့ ဂဏန်းကို ရေးပေးနော်။",
                "location":"🏙 မြို့/တိုင်းပဲ ရေးပေးနော်။ လိပ်စာအတိအကျ မရေးပါနဲ့။",
                "bio":"💬 Bio အသစ်လေး ရေးပေးနော်။",
                "media":"📸 ပုံအသစ် ဒါမှမဟုတ် စက္ကန့် ၃၀ အောက် Video ပို့ပေးနော်။"}
@@ -127,8 +127,8 @@ async def respond(update,context):
     elif field=="age":
         try: value=int(text.strip())
         except ValueError: value=0
-        if not 18<=value<=120:
-            await update.effective_message.reply_text("🌷 အသက် ၁၈–၁၂၀ အတွင်း ဂဏန်းနဲ့ ရေးပေးနော်။")
+        if not 0<=value<=999999999 or not text.strip().isdecimal():
+            await update.effective_message.reply_text("🌷 0 ကနေ 999999999 အတွင်း ဂဏန်းပဲ ရေးပေးနော်။")
             return True
     else:
         limit=300 if field=="bio" else 50
