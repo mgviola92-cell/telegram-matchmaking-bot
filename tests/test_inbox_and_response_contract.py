@@ -63,7 +63,7 @@ class SourceChecks(unittest.TestCase):
 
     def test_private_invitation_commands_exist(self):
         source = (ROOT / "handlers.py").read_text(encoding="utf-8")
-        for command in ('CommandHandler("inbox", inbox)', 'CommandHandler("outgoing", outgoing)'):
+        for command in ('CommandHandler("inbox", private_inbox_command)', 'CommandHandler("outgoing", private_outgoing_command)'):
             self.assertIn(command, source)
 
 
