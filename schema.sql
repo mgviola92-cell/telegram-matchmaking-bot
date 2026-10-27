@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS profiles (
  user_id BIGINT NOT NULL,
  group_id BIGINT NOT NULL,
  display_name TEXT NOT NULL CHECK(length(display_name) BETWEEN 1 AND 60),
- age SMALLINT CHECK(age BETWEEN 18 AND 120),
+ age INTEGER,
  adult_self_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
  bio TEXT CHECK(length(bio)<=300),
  media_type TEXT NOT NULL CHECK(media_type IN ('photo','video')),
@@ -160,3 +160,8 @@ CREATE INDEX IF NOT EXISTS pv_match_sessions_active ON pv_match_sessions(updated
 
 -- A second outward-facing card on the requester's group.
 ALTER TABLE requests ADD COLUMN IF NOT EXISTS sender_card_message_id BIGINT;
+
+-- The displayed 'age' column is now a profile number, not proof of age.
+-- Older deployments created profiles_age_check and SMALLINT; migrate those too.
+ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_age_check;
+ALTER TABLE profiles ALTER COLUMN age TYPE INTEGER;
