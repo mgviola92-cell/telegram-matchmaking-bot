@@ -125,3 +125,37 @@ class SourceCardResultTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(kws["message_id"],501)
         self.assertIn("အဆင်မပြေခဲ့ဘူး",kws["caption"])
         self.assertNotIn("tg://user?id=22",kws["caption"])
+
+class MainMenuReplyKeyboardTests(unittest.TestCase):
+    def test_persistent_pv_home_menu_and_direct_search(self):
+        key=pv_matching.MAIN_KEYBOARD
+        labels=[b.text for row in key.keyboard for b in row]
+        self.assertTrue(key.is_persistent)
+        self.assertIn(pv_matching.MAIN_SEARCH,labels)
+        self.assertIn(pv_matching.MAIN_INBOX,labels)
+        self.assertIn(pv_matching.MAIN_PROFILE,labels)
+
+    def test_source_group_lookup_requires_membership(self):
+        code=(ROOT/"pv_matching.py").read_text(encoding="utf-8")
+        self.assertIn("candidate_source_groups(uid)",code)
+        self.assertIn("member(context.bot,gid,uid)",code)
+        self.assertIn('callback_data=f"pvsource:{gid}"',code)
+
+    def test_start_and_keyboard_routing(self):
+        code=(ROOT/"handlers.py").read_text(encoding="utf-8")
+        self.assertIn("reply_markup=pv_matching.MAIN_KEYBOARD",code)
+        self.assertIn("private_keyboard_command",code)
+        self.assertIn("pv_matching.source_callback",code)
+
+class DirectSearchPickerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_no_profile_does_not_browse(self):
+        from unittest.mock import patch
+        msg=SimpleNamespace(reply_text=AsyncMock())
+        user=SimpleNamespace(id=11)
+        update=SimpleNamespace(effective_chat=SimpleNamespace(type="private"),
+            effective_user=user,effective_message=msg)
+        with patch.object(pv_matching.db,"user_profiles",AsyncMock(return_value=[])), \
+             patch.object(pv_matching,"begin",AsyncMock()) as begin:
+            await pv_matching.select_source_group(update,SimpleNamespace(bot=SimpleNamespace()))
+        begin.assert_not_awaited()
+        msg.reply_text.assert_awaited_once()
