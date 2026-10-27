@@ -55,3 +55,22 @@ class ProfileReplyHandlers(unittest.IsolatedAsyncioTestCase):
             await pv_profile.respond(update,SimpleNamespace(user_data=state))
         deletion.assert_not_awaited()
         self.assertEqual(state["pv_profile"]["mode"],"delete")
+
+class NumericDisplayFieldTests(unittest.IsolatedAsyncioTestCase):
+    async def test_profile_number_one_is_valid_in_private_edit(self):
+        state={"pv_profile":{"mode":"edit","group_id":-1007,"field":"age"}}
+        message=SimpleNamespace(text="1",reply_text=AsyncMock())
+        update=SimpleNamespace(effective_chat=SimpleNamespace(type="private"),
+            effective_user=SimpleNamespace(id=11),effective_message=message)
+        with patch.object(pv_profile.db,"get_profile",AsyncMock(return_value={"group_id":-1007})), \
+             patch.object(pv_profile.db,"update_profile_text",AsyncMock(return_value={"group_id":-1007})) as save:
+            await pv_profile.respond(update,SimpleNamespace(user_data=state))
+        save.assert_awaited_once_with(11,-1007,"age",1)
+
+    def test_numeric_field_is_not_adult_eligibility(self):
+        from pathlib import Path
+        schema=(Path(__file__).resolve().parents[1]/"schema.sql").read_text(encoding="utf-8")
+        self.assertIn("adult_self_confirmed",schema)
+        self.assertIn("DROP CONSTRAINT IF EXISTS profiles_age_check",schema)
+        labels=[b.text for row in pv_profile.MENU.keyboard for b in row]
+        self.assertIn("🎲 ဂဏန်းပြင်မယ်",labels)
