@@ -135,17 +135,17 @@ class MainMenuReplyKeyboardTests(unittest.TestCase):
         self.assertIn(pv_matching.MAIN_INBOX,labels)
         self.assertIn(pv_matching.MAIN_PROFILE,labels)
 
-    def test_source_group_lookup_requires_membership(self):
+    def test_direct_search_uses_original_profile_group(self):
         code=(ROOT/"pv_matching.py").read_text(encoding="utf-8")
-        self.assertIn("candidate_source_groups(uid)",code)
-        self.assertIn("member(context.bot,gid,uid)",code)
-        self.assertIn('callback_data=f"pvsource:{gid}"',code)
+        self.assertIn('await begin(update,context,own[0]["group_id"])',code)
+        self.assertNotIn('callback_data=f"pvsource:',code)
+        self.assertNotIn("candidate_source_groups(uid)",code)
 
     def test_start_and_keyboard_routing(self):
         code=(ROOT/"handlers.py").read_text(encoding="utf-8")
         self.assertIn("reply_markup=pv_matching.MAIN_KEYBOARD",code)
         self.assertIn("private_keyboard_command",code)
-        self.assertIn("pv_matching.source_callback",code)
+        self.assertNotIn("pv_matching.source_callback",code)
 
 class DirectSearchPickerTests(unittest.IsolatedAsyncioTestCase):
     async def test_no_profile_does_not_browse(self):
@@ -160,3 +160,19 @@ class DirectSearchPickerTests(unittest.IsolatedAsyncioTestCase):
             await pv_matching.select_source_group(update,SimpleNamespace(bot=SimpleNamespace()))
         begin.assert_not_awaited()
         msg.reply_text.assert_awaited_once()
+
+    async def test_stored_registration_group_is_used_without_picker(self):
+        from unittest.mock import patch
+        msg=SimpleNamespace(reply_text=AsyncMock())
+        update=SimpleNamespace(effective_chat=SimpleNamespace(type="private"),
+            effective_user=SimpleNamespace(id=11),effective_message=msg)
+        existing={"group_id":-1007123,"adult_self_confirmed":True}
+        with patch.object(pv_matching.db,"user_profiles",
+                  AsyncMock(return_value=[existing])), \
+             patch.object(pv_matching,"get_session",AsyncMock(return_value=None)), \
+             patch.object(pv_matching,"begin",AsyncMock()) as begin:
+            await pv_matching.select_source_group(update,SimpleNamespace(bot=SimpleNamespace()))
+        begin.assert_awaited_once()
+        self.assertEqual(begin.await_args.args[2],-1007123)
+        msg.reply_text.assert_not_awaited()
+
