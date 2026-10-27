@@ -150,11 +150,17 @@ async def shutdown():
 
 
 async def select_source_group(update,context):
-    """Find a verified origin group when searching directly in PV."""
-    from handlers import member,B,K
+    """Search directly using the one global profile's original registration group.
+
+    Never ask the user to select a source group. The canonical profile group_id
+    is preserved when the same global profile is used across other groups.
+    """
     uid=update.effective_user.id
+    if update.effective_chat.type!="private":
+        return
     if await get_session(uid):
-        await update.effective_message.reply_text("🎀 ကြည့်နေတဲ့ Profile ကတ်လေး ရှိပြီးသားနော်။",reply_markup=KEYBOARD)
+        await update.effective_message.reply_text(
+            "🎀 ကြည့်နေတဲ့ Profile ကတ်လေး ရှိပြီးသားနော်။",reply_markup=KEYBOARD)
         return
     own=await db.user_profiles(uid)
     if not own or not own[0]["adult_self_confirmed"]:
@@ -162,62 +168,8 @@ async def select_source_group(update,context):
             "🌷 Profile လေးအရင်ဖန်တီးပေးနော်။ Bot ရှိတဲ့ Group ထဲမှာ /register နဲ့ စနိုင်တယ်။",
             reply_markup=MAIN_KEYBOARD)
         return
-    candidates=await db.candidate_source_groups(uid)
-    allowed=[]
-    for record in candidates:
-        gid=record["group_id"]
-        if await member(context.bot,gid,uid):
-            opts=await db.group_settings(gid)
-            if opts["matchmaking"] and opts["requests"]:
-                allowed.append(gid)
-    if not allowed:
-        await update.effective_message.reply_text(
-            "🌷 လူတောင်းပွဲဖွင့်ထားတဲ့ Group တစ်ခုမှာ ပါဝင်ထားဖို့ လိုတယ်နော်။",
-            reply_markup=MAIN_KEYBOARD)
-        return
-    if len(allowed)==1:
-        await begin(update,context,allowed[0])
-        return
-    buttons=[]
-    for gid in allowed:
-        try:
-            chat=await context.bot.get_chat(gid)
-            title=(getattr(chat,"title",None) or "Group")[:48]
-        except TelegramError:
-            title="Group"
-        buttons.append([B("🏡 "+title,callback_data=f"pvsource:{gid}")])
-    await update.effective_message.reply_text(
-        "🏡 ဘယ် Group ကနေ တောင်းမလဲ ရွေးပေးနော်။",reply_markup=K(buttons))
-
-
-async def source_callback(update,context):
-    from handlers import member
-    q=update.callback_query
-    if q.message.chat.type!="private":
-        await q.answer("Private မှာပဲ ရွေးလို့ရမယ်နော်။",show_alert=True)
-        return
-    try:
-        gid=int(q.data.split(":",1)[1])
-    except (ValueError,AttributeError):
-        await q.answer("Group လေး မမှန်တော့ဘူးနော်။",show_alert=True)
-        return
-    known=await db.candidate_source_groups(q.from_user.id)
-    if gid not in [r["group_id"] for r in known] or not await member(context.bot,gid,q.from_user.id):
-        await q.answer("ဒီ Group ကို သုံးလို့မရတော့ဘူးနော်။",show_alert=True)
-        return
-    opts=await db.group_settings(gid)
-    if not opts["matchmaking"] or not opts["requests"]:
-        await q.answer("ဒီ Group မှာ ခဏပိတ်ထားတယ်နော်။",show_alert=True)
-        return
-    await q.answer()
-    try:
-        await q.message.delete()
-    except TelegramError:
-        pass
-    proxy=type("PVSourceUpdate",(),{
-        "effective_user":q.from_user,"effective_chat":q.message.chat,
-        "effective_message":q.message})()
-    await begin(proxy,context,gid)
+    # begin() rechecks current membership, group switches and the profile.
+    await begin(update,context,own[0]["group_id"])
 
 
 async def begin(update,context,source_group):
