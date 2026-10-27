@@ -13,6 +13,15 @@ from telegram.error import TelegramError
 from db import pool
 import repository as db
 
+MAIN_SEARCH = "🔎 Profile ရှာမယ်"
+MAIN_PROFILE = "🎀 ကိုယ့် Profile"
+MAIN_INBOX = "💌 ရောက်လာတဲ့စာတွေ"
+MAIN_OUTGOING = "📮 ပို့ထားတဲ့စာတွေ"
+MAIN_HELP = "🌷 အသုံးပြုပုံ"
+MAIN_KEYBOARD = ReplyKeyboardMarkup([
+    [MAIN_SEARCH], [MAIN_PROFILE, MAIN_INBOX],
+    [MAIN_OUTGOING, MAIN_HELP]], resize_keyboard=True, is_persistent=True)
+
 SKIP = "👎 ကျော်မယ်"
 REQUEST = "💌 တောင်းမယ်"
 STOP = "❌ ပွဲသိမ်းမယ်"
@@ -98,7 +107,7 @@ async def expire(bot,user_id,card_id,seconds=180):
             await retire(bot,user_id,card_id)
             try:
                 await bot.send_message(user_id,"🌷 ဒီတစ်ခေါက်ကြည့်တာလေး နားလိုက်ပြီနော်။",
-                                       reply_markup=ReplyKeyboardRemove())
+                                       reply_markup=MAIN_KEYBOARD)
             except TelegramError:
                 pass
     except asyncio.CancelledError:
@@ -138,6 +147,77 @@ async def shutdown():
         job.cancel()
     if jobs:
         await asyncio.gather(*jobs,return_exceptions=True)
+
+
+async def select_source_group(update,context):
+    """Find a verified origin group when searching directly in PV."""
+    from handlers import member,B,K
+    uid=update.effective_user.id
+    if await get_session(uid):
+        await update.effective_message.reply_text("🎀 ကြည့်နေတဲ့ Profile ကတ်လေး ရှိပြီးသားနော်။",reply_markup=KEYBOARD)
+        return
+    own=await db.user_profiles(uid)
+    if not own or not own[0]["adult_self_confirmed"]:
+        await update.effective_message.reply_text(
+            "🌷 Profile လေးအရင်ဖန်တီးပေးနော်။ Bot ရှိတဲ့ Group ထဲမှာ /register နဲ့ စနိုင်တယ်။",
+            reply_markup=MAIN_KEYBOARD)
+        return
+    candidates=await db.candidate_source_groups(uid)
+    allowed=[]
+    for record in candidates:
+        gid=record["group_id"]
+        if await member(context.bot,gid,uid):
+            opts=await db.group_settings(gid)
+            if opts["matchmaking"] and opts["requests"]:
+                allowed.append(gid)
+    if not allowed:
+        await update.effective_message.reply_text(
+            "🌷 လူတောင်းပွဲဖွင့်ထားတဲ့ Group တစ်ခုမှာ ပါဝင်ထားဖို့ လိုတယ်နော်။",
+            reply_markup=MAIN_KEYBOARD)
+        return
+    if len(allowed)==1:
+        await begin(update,context,allowed[0])
+        return
+    buttons=[]
+    for gid in allowed:
+        try:
+            chat=await context.bot.get_chat(gid)
+            title=(getattr(chat,"title",None) or "Group")[:48]
+        except TelegramError:
+            title="Group"
+        buttons.append([B("🏡 "+title,callback_data=f"pvsource:{gid}")])
+    await update.effective_message.reply_text(
+        "🏡 ဘယ် Group ကနေ တောင်းမလဲ ရွေးပေးနော်။",reply_markup=K(buttons))
+
+
+async def source_callback(update,context):
+    from handlers import member
+    q=update.callback_query
+    if q.message.chat.type!="private":
+        await q.answer("Private မှာပဲ ရွေးလို့ရမယ်နော်။",show_alert=True)
+        return
+    try:
+        gid=int(q.data.split(":",1)[1])
+    except (ValueError,AttributeError):
+        await q.answer("Group လေး မမှန်တော့ဘူးနော်။",show_alert=True)
+        return
+    known=await db.candidate_source_groups(q.from_user.id)
+    if gid not in [r["group_id"] for r in known] or not await member(context.bot,gid,q.from_user.id):
+        await q.answer("ဒီ Group ကို သုံးလို့မရတော့ဘူးနော်။",show_alert=True)
+        return
+    opts=await db.group_settings(gid)
+    if not opts["matchmaking"] or not opts["requests"]:
+        await q.answer("ဒီ Group မှာ ခဏပိတ်ထားတယ်နော်။",show_alert=True)
+        return
+    await q.answer()
+    try:
+        await q.message.delete()
+    except TelegramError:
+        pass
+    proxy=type("PVSourceUpdate",(),{
+        "effective_user":q.from_user,"effective_chat":q.message.chat,
+        "effective_message":q.message})()
+    await begin(proxy,context,gid)
 
 
 async def begin(update,context,source_group):
@@ -195,7 +275,7 @@ async def handle_reply(update,context):
     session=await get_session(uid)
     if not session:
         await update.effective_chat.send_message("🌷 ကြည့်နေတဲ့ကတ်လေး သက်တမ်းကုန်သွားပြီနော်။ Group ထဲက /match နဲ့ ပြန်စပါ။",
-                                                 reply_markup=ReplyKeyboardRemove())
+                                                 reply_markup=MAIN_KEYBOARD)
         return
     if text==STOP:
         await finish(uid)
@@ -203,7 +283,7 @@ async def handle_reply(update,context):
         if task: task.cancel()
         await retire(context.bot,uid,session["card_message_id"])
         await context.bot.send_message(uid,"💗 ဒီနေ့တော့ ဒီလောက်ပဲနော်။",
-                                      reply_markup=ReplyKeyboardRemove())
+                                      reply_markup=MAIN_KEYBOARD)
         return
     keys=session["profile_keys"]
     if isinstance(keys,str): keys=json.loads(keys)
@@ -230,7 +310,7 @@ async def handle_reply(update,context):
     next_pos=session["position"]+1
     if next_pos>=len(keys):
         await context.bot.send_message(uid,"🌷 အကုန်ကြည့်ပြီးပြီနော်။ /match နဲ့ နောက်တစ်ခေါက် ပြန်စနိုင်တယ်။",
-                                       reply_markup=ReplyKeyboardRemove())
+                                       reply_markup=MAIN_KEYBOARD)
         await finish(uid)
         await retire(context.bot,uid,session["card_message_id"])
         return
