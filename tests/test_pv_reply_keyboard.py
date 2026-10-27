@@ -155,6 +155,7 @@ class DirectSearchPickerTests(unittest.IsolatedAsyncioTestCase):
         update=SimpleNamespace(effective_chat=SimpleNamespace(type="private"),
             effective_user=user,effective_message=msg)
         with patch.object(pv_matching.db,"user_profiles",AsyncMock(return_value=[])), \
+             patch.object(pv_matching,"get_session",AsyncMock(return_value=None)), \
              patch.object(pv_matching,"begin",AsyncMock()) as begin:
             await pv_matching.select_source_group(update,SimpleNamespace(bot=SimpleNamespace()))
         begin.assert_not_awaited()
