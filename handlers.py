@@ -472,8 +472,8 @@ async def age_step(update, context):
         age = int(text)
     except ValueError:
         age = 0
-    if not 18 <= age <= 120:
-        await update.message.reply_text("🌷 အသက် ၁၈ နှစ်ကနေ ၁၂၀ နှစ်အတွင်း ဂဏန်းနဲ့ ရေးပေးနော်။")
+    if not 0 <= age <= 999999999 or not text.isdecimal():
+        await update.message.reply_text("🌷 0 ကနေ 999999999 အတွင်း ဂဏန်းပဲ ရေးပေးနော်။")
         return AGE
     draft["age"] = age
     await update.message.reply_text(
