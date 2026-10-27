@@ -355,3 +355,18 @@ async def remove_profile_presence(user_id,group_id):
     async with p.acquire() as c:
         await c.execute("""DELETE FROM profile_presence
             WHERE user_id=$1 AND group_id=$2""",user_id,group_id)
+
+async def candidate_source_groups(user_id):
+    """Groups explicitly observed for user; fallback to their profile's home group.
+
+    Membership and group settings are rechecked through Telegram before use.
+    """
+    p=await pool()
+    async with p.acquire() as c:
+        return await c.fetch("""SELECT DISTINCT group_id FROM (
+            SELECT group_id, last_seen_at AS seen_at FROM profile_presence
+                WHERE user_id=$1
+            UNION ALL
+            SELECT group_id, created_at AS seen_at FROM profiles
+                WHERE user_id=$1 AND NOT archived AND adult_self_confirmed
+        ) known ORDER BY group_id LIMIT 30""",user_id)
