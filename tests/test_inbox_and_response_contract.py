@@ -57,7 +57,8 @@ class SourceChecks(unittest.TestCase):
         handlers = (ROOT / "handlers.py").read_text(encoding="utf-8")
         self.assertIn("async def age_step", handlers)
         self.assertIn("adult_confirmed", handlers)
-        self.assertIn("if not 18 <= age <= 120", handlers)
+        self.assertIn("if not 0 <= age <= 999999999", handlers)
+        self.assertIn("age_confirm:yes", handlers)
         self.assertIn('return AGE', handlers)
         self.assertIn("async def location_step", handlers)
 
