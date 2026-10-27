@@ -80,3 +80,9 @@
 - PV main-menu Search starts immediately using the canonical global profile's stored `group_id` (the original registration group). It does not show a group picker, even if the user participates in multiple groups.
 - Membership and admin settings are still checked by the browse-start handler. If the saved origin group is no longer available, show a clear explanation rather than silently substituting another group or posting a request from a different group.
 - Old `pvsource` selection callbacks have been retired. The old multi-group picker description earlier in this spec is superseded by this rule.
+
+## PV reply-keyboard navigation update (2026-10-27)
+- PV main My Profile opens the global profile directly as media with no inline edit controls; all editing commands (name, age, city/region, bio, Telegram photo/video, profile deletion confirmation, back/home) use a context-specific persistent ReplyKeyboardMarkup. /profile routes to the same screen. Only owner ID can edit or delete; all fields are validated server-side.
+- PV incoming/outgoing listings are reply keyboards with numbered request entries, followed by contextual action/confirmation reply keyboards; /inbox and /outgoing route to the same menus. Request operations revalidate sender/recipient ownership in the DB and preserve existing group message lifecycle and privacy.
+- PV match send confirmation switches from inline to ReplyKeyboardMarkup and checks current DB browse cursor before delivering group cards. Legacy inline callbacks remain registered to handle older already-sent messages, and specialized onboarding/admin/group card flows have not been fully migrated.
+- No Telegram account links appear before the request's privacy release rules; source group labels and media remain the previously agreed forms.
