@@ -460,7 +460,7 @@ async def name_step(update, context):
         await update.message.reply_text(say_notice("invalid_name", update.effective_user.id))
         return NAME
     drafts[update.effective_user.id]["name"] = value
-    await update.message.reply_text("🎀 အသက်လေး ရိုက်ပေးနော်။ အသက် ၁၈ နှစ်ပြည့်ပြီးသူတွေအတွက်ပဲ ဖွင့်ထားတာပါ။")
+    await update.message.reply_text("🎲 Profile မှာပြချင်တဲ့ ဂဏန်းလေး ရိုက်ပေးနော်။")
     return AGE
 
 async def age_step(update, context):
