@@ -411,12 +411,12 @@ async def start(update, context):
             await msg.reply_text("အဲဒီ Group ထဲမှာ အရင်ဝင်ထားဖို့ လိုတယ်နော် 💗")
             return ConversationHandler.END
         if await db.get_profile(update.effective_user.id,gid):
-            await msg.reply_text("🎀 မိတ်ဆက်ကတ် ရှိပြီးသားနော်။ ဝိုင်းတိုင်းမှာ ဒီကတ်တစ်ခုပဲ သုံးလို့ရတယ်။",reply_markup=private_menu())
+            await msg.reply_text("🎀 မိတ်ဆက်ကတ် ရှိပြီးသားနော်။ အောက်က Menu ကနေ ဆက်သုံးနိုင်တယ်။",reply_markup=pv_matching.MAIN_KEYBOARD)
             return ConversationHandler.END
         drafts[update.effective_user.id] = {"group_id": gid}
         await msg.reply_text("💌 လူတောင်းပွဲမှာ ပါဝင်ဖို့ အသက် ၁၈ နှစ် ပြည့်ပြီးပြီလား?", reply_markup=K([[B("💗 ပြည့်ပြီးပါပြီ", callback_data="age_confirm:yes")], [B("🌷 မပြည့်သေးပါဘူး", callback_data="age_confirm:no")]]))
         return CONFIRM_AGE
-    await msg.reply_text(say("welcome", update.effective_user.id), reply_markup=private_menu())
+    await msg.reply_text(say("welcome", update.effective_user.id), reply_markup=pv_matching.MAIN_KEYBOARD)
     return ConversationHandler.END
 
 async def register(update, context):
@@ -1417,6 +1417,27 @@ async def membership_change(update, context):
     except Exception:
         logging.exception("Could not update profile archive status")
 
+async def private_keyboard_command(update,context):
+    """Persistent private navigation, independent of the short-lived match keyboard."""
+    if update.effective_chat.type!="private":
+        return
+    key=update.effective_message.text
+    if key==pv_matching.MAIN_SEARCH:
+        await pv_matching.select_source_group(update,context)
+    elif key==pv_matching.MAIN_PROFILE:
+        await profile(update,context)
+    elif key==pv_matching.MAIN_INBOX:
+        await inbox(update,context)
+    elif key==pv_matching.MAIN_OUTGOING:
+        await outgoing(update,context)
+    elif key==pv_matching.MAIN_HELP:
+        await update.effective_message.reply_text(
+            "🌷 Bot ရှိတဲ့ Group မှာ /register နဲ့ Profile အရင်ဖန်တီးပေးနော်။\\n"
+            "🔎 Profile ရှာမယ် နှိပ်ပြီး PV ထဲကနေ ရှာနိုင်ပြီ။\\n"
+            "💌 လက်ခံမလား၊ ငြင်းမလား ဆိုတာကို ကိုယ့် PV မှာပဲ အဖြေပေးနိုင်တယ်။",
+            reply_markup=pv_matching.MAIN_KEYBOARD)
+
+
 def handlers():
     registration = ConversationHandler(
         entry_points=[CommandHandler("start", start, filters.ChatType.PRIVATE)],
@@ -1459,6 +1480,11 @@ def handlers():
             CallbackQueryHandler(ask_callback, pattern=r"^ask:"),
             CallbackQueryHandler(ask_confirm_callback, pattern=r"^ask_(confirm:|cancel:)"), CallbackQueryHandler(reply_callback, pattern=r"^reply:"),
             CallbackQueryHandler(pv_matching.confirm,pattern=r"^pvreq"),
+            CallbackQueryHandler(pv_matching.source_callback,pattern=r"^pvsource:-?[0-9]+$"),
+            CommandHandler("startmatch",pv_matching.select_source_group,filters.ChatType.PRIVATE),
+            MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND &
+                filters.Regex(r"^(🔎 Profile ရှာမယ်|🎀 ကိုယ့် Profile|💌 ရောက်လာတဲ့စာတွေ|📮 ပို့ထားတဲ့စာတွေ|🌷 အသုံးပြုပုံ)$"),
+                private_keyboard_command),
             MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND &
                 filters.Regex(r"^(👎 ကျော်မယ်|💌 တောင်းမယ်|❌ ပွဲသိမ်းမယ်)$"),
                 pv_matching.handle_reply),
