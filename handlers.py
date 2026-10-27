@@ -1494,7 +1494,7 @@ def handlers():
                 pv_matching.handle_reply),
             CallbackQueryHandler(decide_callback, pattern=r"^decide:"),
             CommandHandler("inbox", inbox), CommandHandler("outgoing", outgoing),
-            CommandHandler("profile", profile), CommandHandler("settings", settings),
+            CommandHandler("profile", pv_profile.open_profile), CommandHandler("settings", settings),
             CallbackQueryHandler(setting_callback, pattern=r"^setting:"),
             CallbackQueryHandler(home_callback, pattern=r"^home:"),
             CallbackQueryHandler(profile_view, pattern=r"^profile_view:"),
