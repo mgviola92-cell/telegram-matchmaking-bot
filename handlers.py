@@ -10,6 +10,7 @@ from telegram.error import TelegramError
 from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, ChatMemberHandler, filters, ConversationHandler
 import pv_matching
 import pv_profile
+import pv_requests_menu
 import repository as db
 from responses import say
 from notices import say_notice
@@ -1418,7 +1419,17 @@ async def membership_change(update, context):
     except Exception:
         logging.exception("Could not update profile archive status")
 
+async def private_inbox_command(update,context):
+    await pv_requests_menu.open_menu(update,context,"inbox")
+
+
+async def private_outgoing_command(update,context):
+    await pv_requests_menu.open_menu(update,context,"outgoing")
+
+
 async def pv_profile_text_command(update,context):
+    if await pv_requests_menu.handle(update,context):
+        return
     await pv_profile.respond(update,context)
 
 
@@ -1432,9 +1443,9 @@ async def private_keyboard_command(update,context):
     elif key==pv_matching.MAIN_PROFILE:
         await pv_profile.open_profile(update,context)
     elif key==pv_matching.MAIN_INBOX:
-        await inbox(update,context)
+        await pv_requests_menu.open_menu(update,context,"inbox")
     elif key==pv_matching.MAIN_OUTGOING:
-        await outgoing(update,context)
+        await pv_requests_menu.open_menu(update,context,"outgoing")
     elif key==pv_matching.MAIN_HELP:
         await update.effective_message.reply_text(
             "🌷 Bot ရှိတဲ့ Group မှာ /register နဲ့ Profile အရင်ဖန်တီးပေးနော်။\\n"
@@ -1493,7 +1504,7 @@ def handlers():
                 filters.Regex(r"^(👎 ကျော်မယ်|💌 တောင်းမယ်|❌ ပွဲသိမ်းမယ်)$"),
                 pv_matching.handle_reply),
             CallbackQueryHandler(decide_callback, pattern=r"^decide:"),
-            CommandHandler("inbox", inbox), CommandHandler("outgoing", outgoing),
+            CommandHandler("inbox", private_inbox_command), CommandHandler("outgoing", private_outgoing_command),
             CommandHandler("profile", pv_profile.open_profile), CommandHandler("settings", settings),
             CallbackQueryHandler(setting_callback, pattern=r"^setting:"),
             CallbackQueryHandler(home_callback, pattern=r"^home:"),
