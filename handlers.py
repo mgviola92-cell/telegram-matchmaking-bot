@@ -9,6 +9,7 @@ from telegram import InlineKeyboardButton as B, InlineKeyboardMarkup as K, Input
 from telegram.error import TelegramError
 from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, ChatMemberHandler, filters, ConversationHandler
 import pv_matching
+import pv_profile
 import repository as db
 from responses import say
 from notices import say_notice
@@ -1417,6 +1418,10 @@ async def membership_change(update, context):
     except Exception:
         logging.exception("Could not update profile archive status")
 
+async def pv_profile_text_command(update,context):
+    await pv_profile.respond(update,context)
+
+
 async def private_keyboard_command(update,context):
     """Persistent private navigation, independent of the short-lived match keyboard."""
     if update.effective_chat.type!="private":
@@ -1425,7 +1430,7 @@ async def private_keyboard_command(update,context):
     if key==pv_matching.MAIN_SEARCH:
         await pv_matching.select_source_group(update,context)
     elif key==pv_matching.MAIN_PROFILE:
-        await profile(update,context)
+        await pv_profile.open_profile(update,context)
     elif key==pv_matching.MAIN_INBOX:
         await inbox(update,context)
     elif key==pv_matching.MAIN_OUTGOING:
@@ -1502,4 +1507,8 @@ def handlers():
             CallbackQueryHandler(intro_confirm_callback,pattern=r"^intro_(confirm:|cancel:)"),
             CallbackQueryHandler(inbox_open, pattern=r"^inbox_open:"),
             CallbackQueryHandler(withdraw_ask, pattern=r"^withdraw_ask:"),
-            CallbackQueryHandler(withdraw_do, pattern=r"^withdraw_(do:|cancel$)")]
+            CallbackQueryHandler(withdraw_do, pattern=r"^withdraw_(do:|cancel$)"),
+            MessageHandler(filters.ChatType.PRIVATE & (filters.PHOTO | filters.VIDEO),
+                pv_profile.handle_media),
+            MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND,
+                pv_profile_text_command)]
