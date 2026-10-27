@@ -75,3 +75,8 @@
 - Direct PV Search requires an existing 18+ confirmed global profile and a source group where the viewer is currently a member and group matchmaking and requests are enabled. For one eligible group, browse starts immediately; for multiple eligible groups, bot shows a per-group inline picker, validating both its server-recorded provenance and live membership on selection.
 - Telegram doesn't emit an update merely because a user opens a chat. The already-visible keyboard persists; first-time and previously started users may use /start to show it if absent.
 - Request cards continue to use the origin group chosen in PV and the destination profile's recorded group; no anonymous fallback or guest browsing is offered.
+
+## PV direct-search source selection correction (2026-10-27)
+- PV main-menu Search starts immediately using the canonical global profile's stored `group_id` (the original registration group). It does not show a group picker, even if the user participates in multiple groups.
+- Membership and admin settings are still checked by the browse-start handler. If the saved origin group is no longer available, show a clear explanation rather than silently substituting another group or posting a request from a different group.
+- Old `pvsource` selection callbacks have been retired. The old multi-group picker description earlier in this spec is superseded by this rule.
