@@ -1509,7 +1509,7 @@ def handlers():
                 filters.Regex(r"^(🔎 Profile ရှာမယ်|🎀 ကိုယ့် Profile|💌 ရောက်လာတဲ့စာတွေ|📮 ပို့ထားတဲ့စာတွေ|🌷 အသုံးပြုပုံ)$"),
                 private_keyboard_command),
             MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND &
-                filters.Regex(r"^(👎 ကျော်မယ်|💌 တောင်းမယ်|❌ ပွဲသိမ်းမယ်)$"),
+                filters.Regex(r"^(👎 ကျော်မယ်|💌 တောင်းမယ်|❌ ပွဲသိမ်းမယ်|💌 တကယ်တောင်းမယ်|🌷 စိတ်ပြောင်းပြီ)$"),
                 pv_matching.handle_reply),
             CallbackQueryHandler(decide_callback, pattern=r"^decide:"),
             CommandHandler("inbox", private_inbox_command), CommandHandler("outgoing", private_outgoing_command),
