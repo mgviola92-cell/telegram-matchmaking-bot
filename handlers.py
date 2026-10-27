@@ -1480,7 +1480,6 @@ def handlers():
             CallbackQueryHandler(ask_callback, pattern=r"^ask:"),
             CallbackQueryHandler(ask_confirm_callback, pattern=r"^ask_(confirm:|cancel:)"), CallbackQueryHandler(reply_callback, pattern=r"^reply:"),
             CallbackQueryHandler(pv_matching.confirm,pattern=r"^pvreq"),
-            CallbackQueryHandler(pv_matching.source_callback,pattern=r"^pvsource:-?[0-9]+$"),
             CommandHandler("startmatch",pv_matching.select_source_group,filters.ChatType.PRIVATE),
             MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND &
                 filters.Regex(r"^(🔎 Profile ရှာမယ်|🎀 ကိုယ့် Profile|💌 ရောက်လာတဲ့စာတွေ|📮 ပို့ထားတဲ့စာတွေ|🌷 အသုံးပြုပုံ)$"),
