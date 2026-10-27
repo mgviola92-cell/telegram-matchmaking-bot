@@ -1439,12 +1439,20 @@ async def private_keyboard_command(update,context):
         return
     key=update.effective_message.text
     if key==pv_matching.MAIN_SEARCH:
+        context.user_data.pop("pv_profile",None)
+        context.user_data.pop("pv_requests",None)
         await pv_matching.select_source_group(update,context)
     elif key==pv_matching.MAIN_PROFILE:
+        context.user_data.pop("pv_profile",None)
+        context.user_data.pop("pv_requests",None)
         await pv_profile.open_profile(update,context)
     elif key==pv_matching.MAIN_INBOX:
+        context.user_data.pop("pv_profile",None)
+        context.user_data.pop("pv_requests",None)
         await pv_requests_menu.open_menu(update,context,"inbox")
     elif key==pv_matching.MAIN_OUTGOING:
+        context.user_data.pop("pv_profile",None)
+        context.user_data.pop("pv_requests",None)
         await pv_requests_menu.open_menu(update,context,"outgoing")
     elif key==pv_matching.MAIN_HELP:
         await update.effective_message.reply_text(
