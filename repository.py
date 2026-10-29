@@ -430,17 +430,25 @@ async def save_profile_prompt(user_id, answer):
 
 
 async def get_or_create_profile_share_token(user_id, candidate):
-    """A stable opaque token; never expose the profile's Telegram numeric ID."""
+    """Stable opaque token; read existing tokens without needless DB updates."""
     if not (20<=len(candidate)<=60) or not candidate.isascii() or not candidate.replace("_","").replace("-","").isalnum():
         raise ValueError("Invalid opaque token")
     p=await pool()
     async with p.acquire() as c:
-        return await c.fetchval("""INSERT INTO profile_share_tokens(user_id,token)
+        current=await c.fetchval("""SELECT t.token FROM profile_share_tokens t
+            JOIN profiles p ON p.user_id=t.user_id
+            WHERE t.user_id=$1 AND NOT p.archived AND p.adult_self_confirmed""",user_id)
+        if current:
+            return current
+        created=await c.fetchval("""INSERT INTO profile_share_tokens(user_id,token)
             SELECT user_id,$2 FROM profiles
             WHERE user_id=$1 AND NOT archived AND adult_self_confirmed
-            ON CONFLICT(user_id) DO UPDATE SET user_id=excluded.user_id
-            RETURNING token""",user_id,candidate)
-
+            ON CONFLICT(user_id) DO NOTHING RETURNING token""",user_id,candidate)
+        if created:
+            return created
+        # Concurrent link creation may have won the conflict.
+        return await c.fetchval(
+            "SELECT token FROM profile_share_tokens WHERE user_id=$1",user_id)
 
 async def resolve_profile_share_token(token):
     """Only a live global profile with recorded active group can be linked."""
