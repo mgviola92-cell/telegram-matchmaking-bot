@@ -411,16 +411,19 @@ async def start(update, context):
         await msg.reply_text("💌 လူတောင်းပွဲမှာ ပါဝင်ဖို့ အသက် ၁၈ နှစ် ပြည့်ပြီးပြီလား?", reply_markup=REG_ADULT_KEYBOARD)
         return CONFIRM_AGE
     # Fresh /start discards private in-memory submenus left by an interrupted flow.
-    for key in ("pv_profile","pv_requests","pv_match_confirm","pv_intro_choice_gid","pv_owner_pending"):
-        context.user_data.pop(key,None)
+    user_data=getattr(context,"user_data",None)
+    if user_data is not None:
+        for key in ("pv_profile","pv_requests","pv_match_confirm","pv_intro_choice_gid","pv_owner_pending"):
+            user_data.pop(key,None)
     drafts.pop(update.effective_user.id,None)
-    active=await pv_matching.get_session(update.effective_user.id)
-    if active:
-        await pv_matching.finish(update.effective_user.id)
-        task=pv_matching._tasks.pop(update.effective_user.id,None)
-        if task and not task.done():
-            task.cancel()
-        await pv_matching.retire(context.bot,update.effective_user.id,active["card_message_id"])
+    if getattr(context,"bot",None) is not None:
+        active=await pv_matching.get_session(update.effective_user.id)
+        if active:
+            await pv_matching.finish(update.effective_user.id)
+            task=pv_matching._tasks.pop(update.effective_user.id,None)
+            if task and not task.done():
+                task.cancel()
+            await pv_matching.retire(context.bot,update.effective_user.id,active["card_message_id"])
     await msg.reply_text(say("welcome", update.effective_user.id), reply_markup=pv_matching.MAIN_KEYBOARD)
     return ConversationHandler.END
 
