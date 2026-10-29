@@ -566,10 +566,16 @@ async def update_event_participation(event_id, group_id, user_id, join):
             if not active:
                 return None
             if join:
+                # Lock the global adult profile during admission; deletion cannot
+                # race this transaction into a misleading "joined" confirmation.
+                eligible=await c.fetchval("""SELECT 1 FROM profiles
+                    WHERE user_id=$1 AND adult_self_confirmed AND NOT archived
+                    FOR SHARE""",user_id)
+                if not eligible:
+                    return None
                 await c.execute("""INSERT INTO group_event_participants(event_id,user_id)
-                    SELECT $1,user_id FROM profiles
-                    WHERE user_id=$2 AND adult_self_confirmed AND NOT archived
-                    ON CONFLICT(event_id,user_id) DO NOTHING""",event_id,user_id)
+                    VALUES($1,$2) ON CONFLICT(event_id,user_id) DO NOTHING""",
+                    event_id,user_id)
             else:
                 await c.execute("""DELETE FROM group_event_participants
                     WHERE event_id=$1 AND user_id=$2""",event_id,user_id)
