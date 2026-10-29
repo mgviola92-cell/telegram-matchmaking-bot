@@ -165,3 +165,13 @@ ALTER TABLE requests ADD COLUMN IF NOT EXISTS sender_card_message_id BIGINT;
 -- Older deployments created profiles_age_check and SMALLINT; migrate those too.
 ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_age_check;
 ALTER TABLE profiles ALTER COLUMN age TYPE INTEGER;
+
+-- Voluntary group introduction references, never downloaded media.
+CREATE TABLE IF NOT EXISTS profile_intro_messages (
+ user_id BIGINT NOT NULL,
+ group_id BIGINT NOT NULL,
+ message_id BIGINT NOT NULL,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ PRIMARY KEY(user_id,group_id,message_id)
+);
+CREATE INDEX IF NOT EXISTS profile_intro_by_user ON profile_intro_messages(user_id);
