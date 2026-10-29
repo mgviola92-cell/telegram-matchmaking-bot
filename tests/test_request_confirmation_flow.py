@@ -140,14 +140,14 @@ class RequestConfirmationTests(unittest.IsolatedAsyncioTestCase):
         update=SimpleNamespace(effective_message=msg,
             effective_chat=SimpleNamespace(id=11,type="private"),
             effective_user=SimpleNamespace(id=11))
-        req={"id":9,"sender_id":22,"sender_group_id":-1007,"recipient_id":11,"recipient_group_id":-1007}
-        source={"display_name":"Tester","bio":"","media_type":"photo","media_file_id":"file1"}
-        bot=SimpleNamespace(send_photo=AsyncMock(return_value=SimpleNamespace(message_id=33)))
-        with patch.object(handlers.db,"pending_request_for_recipient",AsyncMock(return_value=req)), \
-             patch.object(handlers.db,"get_profile",AsyncMock(return_value=source)), \
-             patch.object(handlers,"cleanup_request_group_messages",AsyncMock()) as cleanup:
-            await handlers.start(update,SimpleNamespace(args=["reply_9"],bot=bot))
-        bot.send_photo.assert_awaited_once()
+        bot=SimpleNamespace()
+        with patch.object(handlers.pv_requests_menu,"open_incoming_direct",
+                AsyncMock(return_value=True)) as open_private, \
+             patch.object(handlers,"cleanup_request_group_messages",
+                AsyncMock()) as cleanup:
+            await handlers.start(update,SimpleNamespace(
+                args=["reply_9"],bot=bot,user_data={}))
+        open_private.assert_awaited_once()
         cleanup.assert_awaited_once_with(bot,9,11)
 
     async def test_other_user_cannot_confirm(self):
