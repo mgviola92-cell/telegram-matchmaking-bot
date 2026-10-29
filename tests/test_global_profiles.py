@@ -34,9 +34,10 @@ class GlobalProfileContract(unittest.TestCase):
 
     def test_routing_group_is_separate_from_profile_identity(self):
         repo=(ROOT/"repository.py").read_text(encoding="utf-8")
-        self.assertIn("LEFT JOIN LATERAL",repo)
+        self.assertIn("JOIN LATERAL",repo)
         self.assertIn("profile_presence",repo)
-        self.assertIn("COALESCE(venue.group_id,p.group_id)",repo)
+        self.assertIn("venue.group_id",repo)
+        self.assertNotIn("COALESCE(venue.group_id,p.group_id)",repo)
         schema=(ROOT/"schema.sql").read_text(encoding="utf-8")
         self.assertIn("CREATE TABLE IF NOT EXISTS profile_presence",schema)
 
