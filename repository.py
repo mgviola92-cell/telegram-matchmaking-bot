@@ -487,6 +487,17 @@ async def owner_growth_summary():
 
 
 # Growth batch B: all group posting is admin-triggered; zero periodic background jobs.
+async def recent_daily_question_ids(group_id, limit=9):
+    """At most nine historic IDs, read only when an admin invokes /question."""
+    p=await pool()
+    async with p.acquire() as c:
+        rows=await c.fetch("""SELECT prompt_id FROM group_daily_questions
+            WHERE group_id=$1 AND local_day<(now() AT TIME ZONE 'Asia/Yangon')::date
+            ORDER BY local_day DESC LIMIT $2""",group_id,limit)
+        return [r["prompt_id"] for r in rows]
+
+
+
 async def claim_daily_question(group_id, prompt_id):
     """Reserve a single optional post for the group's Yangon calendar day."""
     if not 0<=prompt_id<1000:
