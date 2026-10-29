@@ -57,6 +57,23 @@ async def open_menu(update,context,kind):
         "💌 ဖွင့်ကြည့်ချင်တဲ့ စာလေးကို ရွေးပေးနော်။" if kind=="inbox" else
         "📮 ပို့ထားတဲ့စာတွေထဲက ရွေးပေးနော်။",reply_markup=options(state))
 
+async def open_incoming_direct(update,context,request_id):
+    """Enter a group-origin request in private using ReplyKeyboard."""
+    uid=update.effective_user.id
+    req=await db.pending_request_for_recipient(request_id,uid)
+    if not req:
+        await update.effective_message.reply_text(
+            "🌷 ဒီဖိတ်ခေါ်စာလေးကို ဖွင့်လို့မရတော့ဘူးနော်။",
+            reply_markup=pv_matching.MAIN_KEYBOARD)
+        return False
+    state={"kind":"inbox","mode":"list","rows":[],"choices":{}}
+    context.user_data["pv_requests"]=state
+    shown=await show_item(update,context,state,request_id)
+    if not shown:
+        context.user_data.pop("pv_requests",None)
+    return bool(shown)
+
+
 async def show_item(update,context,state,rid):
     uid=update.effective_user.id
     from handlers import show_profile,request_header
@@ -86,6 +103,7 @@ async def show_item(update,context,state,rid):
     state["request_id"]=rid
     await update.effective_message.reply_text(
         "💗 အောက်က ခလုတ်လေးတွေကနေ ဆက်ရွေးနိုင်တယ်နော်။",reply_markup=keyboard(keys))
+    return True
 
 
 async def _answer(update,context,rid,action):
