@@ -402,3 +402,76 @@ async def candidate_source_groups(user_id):
             SELECT group_id, created_at AS seen_at FROM profiles
                 WHERE user_id=$1 AND NOT archived AND adult_self_confirmed
         ) known ORDER BY group_id LIMIT 30""",user_id)
+
+
+# Growth batch A: optional global profile text, opaque sharing, and owner aggregates.
+async def save_profile_interests(user_id, interests):
+    """The UI validates tags; also enforce a bounded list at persistence boundary."""
+    if len(interests)>5 or len(set(interests))!=len(interests):
+        raise ValueError("Too many or repeated interests")
+    from growth import INTEREST_TAGS
+    if any(tag not in INTEREST_TAGS for tag in interests):
+        raise ValueError("Invalid interest")
+    p=await pool()
+    async with p.acquire() as c:
+        return await c.fetchrow("""UPDATE profiles SET interests=$2::text[]
+            WHERE user_id=$1 AND NOT archived AND adult_self_confirmed
+            RETURNING user_id,interests""",user_id,interests)
+
+
+async def save_profile_prompt(user_id, answer):
+    if len(answer)>120 or "\\n" in answer or "\\r" in answer:
+        raise ValueError("Invalid profile prompt answer")
+    p=await pool()
+    async with p.acquire() as c:
+        return await c.fetchrow("""UPDATE profiles SET prompt_answer=$2
+            WHERE user_id=$1 AND NOT archived AND adult_self_confirmed
+            RETURNING user_id,prompt_answer""",user_id,answer)
+
+
+async def get_or_create_profile_share_token(user_id, candidate):
+    """A stable opaque token; never expose the profile's Telegram numeric ID."""
+    if not (20<=len(candidate)<=60) or not candidate.isascii() or not candidate.replace("_","").replace("-","").isalnum():
+        raise ValueError("Invalid opaque token")
+    p=await pool()
+    async with p.acquire() as c:
+        return await c.fetchval("""INSERT INTO profile_share_tokens(user_id,token)
+            SELECT user_id,$2 FROM profiles
+            WHERE user_id=$1 AND NOT archived AND adult_self_confirmed
+            ON CONFLICT(user_id) DO UPDATE SET user_id=excluded.user_id
+            RETURNING token""",user_id,candidate)
+
+
+async def resolve_profile_share_token(token):
+    """Only a live global profile with recorded active group can be linked."""
+    if not isinstance(token,str) or len(token)>60 or len(token)<20:
+        return None
+    p=await pool()
+    async with p.acquire() as c:
+        row=await c.fetchrow("""SELECT p.user_id,venue.group_id,
+                   p.display_name,p.age,p.location,p.bio,p.media_type,
+                   p.media_file_id,p.interests,p.prompt_answer
+            FROM profile_share_tokens t
+            JOIN profiles p ON p.user_id=t.user_id
+            JOIN LATERAL (
+                SELECT group_id FROM profile_presence
+                WHERE user_id=p.user_id ORDER BY last_seen_at DESC LIMIT 1
+            ) venue ON true
+            WHERE t.token=$1 AND NOT p.archived AND p.adult_self_confirmed""",token)
+        return dict(row) if row else None
+
+
+async def owner_growth_summary():
+    """Aggregate counts only: no per-person or private-group detail."""
+    p=await pool()
+    async with p.acquire() as c:
+        return dict(await c.fetchrow("""SELECT
+            (SELECT count(*) FROM profiles WHERE NOT archived
+              AND adult_self_confirmed) AS profiles_total,
+            (SELECT count(*) FROM profiles WHERE NOT archived
+              AND adult_self_confirmed AND created_at>=now()-interval '7 days') AS profiles_new_7d,
+            (SELECT count(DISTINCT group_id) FROM profile_presence) AS groups_observed,
+            (SELECT count(*) FROM requests WHERE created_at>=now()-interval '7 days') AS requests_7d,
+            (SELECT count(*) FROM requests WHERE status IN ('accepted','rejected')
+              AND decided_at>=now()-interval '7 days') AS answered_7d
+        """))
