@@ -1,16 +1,18 @@
 # Telegram matchmaking bot — 90-day adult-only launch roadmap
+
+**Scope correction, 2026-10-29:** All profiles are one global public profile per user; Group Only mode is abolished. Do **not** add the proposed Block/Report/Privacy growth feature (#8). Full nine-feature research is in [GROWTH_FEATURES_PLAN.md](GROWTH_FEATURES_PLAN.md).
 Updated: 2026-10-29 (Myanmar time). This is a planning document, not a guarantee of user growth.
 
 ## Positioning and launch boundaries
 - Purpose: consent-based, group-rooted **18+** private Telegram introductions. Profiles and interactions are voluntary; never disclose private group invite links or another user's Telegram contact before both sides agree.
-- The one-time adult confirmation is a necessary eligibility gate; the separate decorative profile number is **not age verification**. A public launch should have a clear 18+ policy, age eligibility safeguards, and a review process for reports.
+- The one-time adult confirmation is a necessary eligibility gate; the separate decorative profile number is **not age verification**. A public launch should have a clear 18+ policy, age eligibility safeguards, and an existing owner support route for serious concerns. This roadmap does not add a new block/report/privacy product feature.
 - No mass unsolicited DMs, contact scraping, bots posting to groups without admin approval, fake reviews/fake users, or auto-joining groups.
 - **Do not buy Telegram Ads for this dating/matchmaking product.** Telegram's official Ads Guidelines section 5.1 explicitly lists dating services as prohibited. Verify any other marketing channel's own age and advertising policies before use.
 - Ask adult-led group administrators for permission before showing promo instructions. Keep private chats/groups private, and ask permission before publicizing examples or testimonials.
 
 ## Phase 0 — launch readiness, days 1–7
 1. Finish the two-account/two-group live acceptance QA checklist, including cleanup, 3-minute expiry, cold restart and permissions.
-2. Publish a short Burmese /help, community rules, Privacy Policy and contact method for deletion/abuse reports. At minimum make **block/report**, anti-harassment and abuse handling operational before any broad invitation drive.
+2. Publish a short Burmese /help, community rules and a contact method for deletion or serious concerns. Keep the existing 18+ eligibility, consent, contact-disclosure and owner support rules operational before broad invitations; do not add the excluded Block/Report/Privacy feature.
 3. Fill the BotFather avatar, About, Description and command list; present /start -> profile -> browse in three steps. State 18+ clearly.
 4. Prepare a Group Admin onboarding card: what the bot does, permissions needed, what messages it will send, when it sends them, how to disable it, and how to remove it.
 5. Privacy-safe measurement: daily unique opt-in starters, successfully created profiles, successful first views, requests, completed responses, 7-day return usage, error rate. Use aggregate counts, do not export identifiable profiles.
@@ -27,7 +29,7 @@ Updated: 2026-10-29 (Myanmar time). This is a planning document, not a guarantee
 - Invite only people who choose to participate. Admins should not bulk-enroll group members.
 - One short Burmese how-it-works post and 20–30 second screen recording showing /start, Reply Keyboard, and consent-based requests without showing real participants' data.
 - Collect 3 voluntary feedback answers after the first interaction: ease of use, unclear steps, trust/privacy concerns. Fix repeated friction before expansion.
-- Monitor 429 Bot API rate-limit errors, message deletion failures, time-to-first-profile, timeout confusion, and reports daily.
+- Monitor 429 Bot API rate-limit errors, message deletion failures, time-to-first-profile, timeout confusion, and serious support cases daily.
 
 ## Phase 2 — discoverability, days 15–30
 - Expand only after pilot safety and reliability gates pass. Trial 5–10 additional consenting, adult-moderated groups matched to the product's actual community niche.
@@ -38,11 +40,11 @@ Updated: 2026-10-29 (Myanmar time). This is a planning document, not a guarantee
 - Proposed exploratory target: 100–300 consented adult profiles by day 30, if communities respond positively. If incidents spike, pause and address safety instead.
 
 ## Phase 3 — retention and safety-led scale, days 31–60
-- Add actionable block/report and moderator audit records with strict data minimization; add request throttling and account abuse handling.
+- Preserve the existing consent, eligibility, and request validation rules. Review request throttling and owner-support responsiveness without introducing the excluded new Block/Report/Privacy feature.
 - Allow voluntary quality feedback on reply-keyboard wording; improve false-click prevention and moderation copy.
 - Opt-in, low-frequency reminders for requests approaching expiry (not unsolicited bulk broadcasts). Offer an explicit opt-out.
 - Create a read-only release changelog, status note and short transparent privacy disclosure.
-- Monitor active communities, weekly returning adult participants, response completion, and serious complaint rate. Do not target minors.
+- Monitor active communities, weekly returning adult participants, response completion, and serious support cases. Do not target minors.
 
 ## Phase 4 — scalable operations, days 61–90
 - Review PostgreSQL query/index plans and Render free-tier cold starts, deployment success, webhook latency and Telegram API 429s.
@@ -60,7 +62,7 @@ Updated: 2026-10-29 (Myanmar time). This is a planning document, not a guarantee
 | Request response | Requests answered / requests sent (24h window) | Rising |
 | Return usage | Consent-based users opening PV 7 days after signup | Rising |
 | Failed group delivery | Failed group card sends / attempted sends | Approaching zero |
-| Trust/safety | Reported incidents, blocks and overdue moderator cases | Low and resolved quickly |
+| Trust/safety | Serious owner-support cases and resolution time | Addressed promptly |
 | Reliability | 429s, application errors, timed-out edits and startup failures | Falling |
 
 Do not publish usernames, Telegram IDs, private group names or raw match data in any growth dashboard.
