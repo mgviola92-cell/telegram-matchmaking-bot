@@ -50,7 +50,11 @@ async def daily_question(update,context):
         await update.effective_message.reply_text(
             "🌷 ဒီ Group မှာ မေးခွန်းပွဲ မဖွင့်ရသေးဘူးနော်။ Admin /settings ကနေ ဖွင့်ပေးပါ။")
         return
-    prompt_id=secrets.randbelow(len(QUESTIONS))
+    # Pick among prompts not used in the last nine eligible group days.
+    # One tiny read per admin command; never a scheduled database poll.
+    recent=await db.recent_daily_question_ids(gid,limit=len(QUESTIONS)-1)
+    choices=[i for i in range(len(QUESTIONS)) if i not in recent]
+    prompt_id=secrets.choice(choices) if choices else secrets.randbelow(len(QUESTIONS))
     slot=await db.claim_daily_question(gid,prompt_id)
     if slot is None:
         await update.effective_message.reply_text(
