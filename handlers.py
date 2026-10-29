@@ -1586,7 +1586,7 @@ def handlers():
     return [registration, profile_editor, reason_editor, owner_setup,
             CallbackQueryHandler(owner_callback,pattern=r"^owner:"),
             MessageHandler(filters.ChatType.PRIVATE &
-                filters.Regex(r"^(♻️ Test Request Reset|✅ Test Requests Reset|🌷 မလုပ်တော့ဘူး|🔄 Panel ပြန်ကြည့်မယ်)$"),
+                filters.Regex(r"^(♻️ Test Request Reset|✅ Test Requests Reset|🌷 မလုပ်တော့ဘူး|🔄 Panel ပြန်ကြည့်မယ်|📊 ပွဲအခြေအနေ)$"),
                 owner_reply_command),
             ChatMemberHandler(membership_change,ChatMemberHandler.CHAT_MEMBER), CommandHandler("register", register), CommandHandler("match", match),
              CommandHandler("invite",growth.group_invite,filters.ChatType.PRIVATE),
