@@ -95,3 +95,14 @@
 - Restart recovery restores PV browse timers, prunes stale PV sessions once at startup, resets /start into safe home navigation and prompts the main reply menu on orphaned button/text events. Private editing state intentionally is not persisted in free-tier disk; users can safely start over after restart.
 - Tests include cross-group mocked delivery, permission failure, eligibility confirmation, deletion cleanup, restart fallback, response routing and keyboard controls. Real two-user/two-group Telegram journeys still require consenting adult test accounts. See QA_RELEASE_CHECKLIST.md.
 - Researched adult-only, opt-in organic launch and KPI roadmap is in LAUNCH_ROADMAP.md. Telegram Ads Guidelines prohibit ads promoting dating services, so do not plan paid Telegram Ads for this product.
+
+
+## Growth batches A + B — draft PRs, not live yet (2026-10-29)
+- Scope is still **one global public profile per user**; do not reintroduce Group Only or per-group duplicate profile records.
+- Batch A (draft PR #1): user-selected group invite link; opaque token global-profile link through PV; optional interests (max five) and profile prompt; aggregate owner-only growth counts. Existing group introduction behavior remains separate.
+- Batch B (draft PR #2, stacked on #1): Admin `/settings` has **questions** and **events** toggles, both OFF by default. Admin `/question` sends at most one original community icebreaker per Yangon calendar day; admin `/event` sends one voluntary 18+ event per Yangon ISO week. Both are manually triggered and group-chat only.
+- Event Join/Leave buttons require current group membership and a valid confirmed-adult global profile; the bot acknowledges privately through the callback and does not post member names/Telegram contacts. Event opt-in is **not a separate profile or a Group Only profile**; standard PV global discovery remains unchanged.
+- After a request is accepted, both existing private acceptance notices append one original, non-AI icebreaker line. Never append it to rejection or pre-consent messages.
+- New data: tiny question/event timestamp/message-ID rows, event participation IDs with foreign-key cleanup, profile interests/short prompt, and an opaque share token. No media bytes, automatic invitation spam, scheduled database polling or mini app.
+- Do **not** add previously excluded Block/Report/Privacy growth feature #8. Preserve all existing age, consent, membership and account-link checks.
+- Changes are **not merged to main or deployed**. GitHub mocked tests are not proof of live Telegram behavior. A production DB migration snapshot and manual consenting-adult two-user/two-group QA are required before release.
