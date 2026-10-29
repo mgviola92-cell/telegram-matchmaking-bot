@@ -21,7 +21,7 @@ MAIN_OUTGOING = "📮 ပို့ထားတဲ့စာတွေ"
 MAIN_HELP = "🌷 အသုံးပြုပုံ"
 MAIN_KEYBOARD = ReplyKeyboardMarkup([
     [MAIN_SEARCH], [MAIN_PROFILE, MAIN_INBOX],
-    [MAIN_OUTGOING, MAIN_HELP]], resize_keyboard=True, is_persistent=True)
+    [MAIN_OUTGOING, MAIN_HELP], ["🌷 Group ထဲ ဖိတ်မယ်"]], resize_keyboard=True, is_persistent=True)
 
 CONFIRM_SEND = "💌 တကယ်တောင်းမယ်"
 CONFIRM_CANCEL = "🌷 စိတ်ပြောင်းပြီ"
