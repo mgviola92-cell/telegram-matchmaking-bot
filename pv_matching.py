@@ -133,10 +133,17 @@ def reset_timeout(bot,user_id,card_id):
 
 
 async def restore_timeouts(bot):
+    """Recover active timers once and remove abandoned sessions after restart."""
     p=await pool()
     async with p.acquire() as c:
+        stale=await c.fetch("""DELETE FROM pv_match_sessions WHERE user_id IN (
+            SELECT user_id FROM pv_match_sessions
+            WHERE updated_at<=now()-interval '3 minutes' LIMIT 500)
+            RETURNING user_id,card_message_id""")
         rows=await c.fetch("""SELECT user_id,card_message_id,updated_at
             FROM pv_match_sessions WHERE updated_at>now()-interval '3 minutes' LIMIT 500""")
+    for item in stale:
+        await retire(bot,item["user_id"],item["card_message_id"])
     for r in rows:
         left=180-(datetime.now(timezone.utc)-r["updated_at"]).total_seconds()
         old=_tasks.pop(r["user_id"],None)
