@@ -17,6 +17,10 @@ REJECT="💔 ငြင်းမယ်"
 WITHDRAW="📮 ပြန်ရုပ်သိမ်းမယ်"
 CONFIRM="✅ သေချာပြန်ရုပ်သိမ်းမယ်"
 CANCEL="🌷 မလုပ်တော့ဘူး"
+NOTE_WRITE="💬 အကြောင်းပြချက်ရေးမယ်"
+NOTE_SKIP="🌷 မရေးတော့ဘူး"
+NOTE_CONFIRM="💌 စကားလေး ပို့မယ်"
+NOTE_CANCEL="🌷 စကားမပို့တော့ဘူး"
 
 def keyboard(rows):
     return ReplyKeyboardMarkup(rows,resize_keyboard=True,is_persistent=True)
@@ -114,10 +118,13 @@ async def _answer(update,context,rid,action):
     async def edit_reply_markup(*args,**kwargs):
         return None
     async def msg_reply(text,**kwargs):
-        # Existing rejection-notes control remains accessible with Reply Keyboard.
         if action=="rejected":
-            text+="\n💬 အကြောင်းပြချက် မမျှဝေလည်း ရပါတယ်နော်။"
-        return await update.effective_message.reply_text(text,reply_markup=pv_matching.MAIN_KEYBOARD)
+            context.user_data["pv_rejection_note"]={"rid":rid,"mode":"choose"}
+            text+="\n💬 အကြောင်းပြချက် မရေးချင်လည်း ရပါတယ်နော်။"
+            reply=keyboard([[NOTE_WRITE,NOTE_SKIP]])
+        else:
+            reply=pv_matching.MAIN_KEYBOARD
+        return await update.effective_message.reply_text(text,reply_markup=reply)
     proxy_msg=SimpleNamespace(chat=update.effective_chat,reply_text=msg_reply)
     q=SimpleNamespace(data=f"decide:{rid}:{action}",from_user=update.effective_user,
         message=proxy_msg,answer=answer,edit_message_reply_markup=edit_reply_markup)
@@ -172,8 +179,9 @@ async def handle(update,context):
             rid=state["request_id"]
             context.user_data.pop("pv_requests",None)
             await _answer(update,context,rid,"accepted" if text==ACCEPT else "rejected")
-            await update.effective_message.reply_text(
-                "💗 အဖြေပေးပြီးပြီနော်။",reply_markup=pv_matching.MAIN_KEYBOARD)
+            if "pv_rejection_note" not in context.user_data:
+                await update.effective_message.reply_text(
+                    "💗 အဖြေပေးပြီးပြီနော်။",reply_markup=pv_matching.MAIN_KEYBOARD)
             return True
     if state["mode"]=="withdraw":
         if text==CANCEL:
@@ -186,4 +194,55 @@ async def handle(update,context):
             context.user_data.pop("pv_requests",None)
             await _withdraw(update,context,rid)
             return True
+    return False
+
+async def handle_rejection_note(update,context):
+    """Optional free-text reason, private and explicitly approved by recipient."""
+    if update.effective_chat.type!="private":
+        return False
+    state=context.user_data.get("pv_rejection_note")
+    if not state:
+        return False
+    text=update.effective_message.text
+    mode=state["mode"]
+    if text in (NOTE_SKIP,NOTE_CANCEL):
+        context.user_data.pop("pv_rejection_note",None)
+        await update.effective_message.reply_text(
+            "🌷 စကားလေးကို မမျှဝေတော့ဘူးနော်။",reply_markup=pv_matching.MAIN_KEYBOARD)
+        return True
+    if mode=="choose" and text==NOTE_WRITE:
+        state["mode"]="draft"
+        await update.effective_message.reply_text(
+            "💬 စကားလေးကို စာလုံး ၂၀၀ အတွင်း ရေးပေးနော်။",
+            reply_markup=keyboard([[NOTE_CANCEL]]))
+        return True
+    if mode=="draft":
+        if not (1<=len(text.strip())<=200):
+            await update.effective_message.reply_text(
+                "🌷 စာလုံး ၁–၂၀၀ အတွင်း ရေးပေးနော်။")
+            return True
+        state["text"]=text.strip()
+        state["mode"]="confirm"
+        await update.effective_message.reply_text(
+            "💌 ဒီစကားလေးကို တစ်ဖက်သူဆီ တကယ်ပို့မလား?\n\n"+state["text"],
+            reply_markup=keyboard([[NOTE_CONFIRM,NOTE_CANCEL]]))
+        return True
+    if mode=="confirm" and text==NOTE_CONFIRM:
+        rid=state["rid"]
+        text_to_share=state["text"]
+        context.user_data.pop("pv_rejection_note",None)
+        saved=await db.save_rejection_reason(
+            rid,update.effective_user.id,text_to_share)
+        if saved:
+            try:
+                await context.bot.send_message(saved["sender_id"],
+                    "🌷 ဖိတ်ခေါ်စာအတွက် လက်ခံသူက မျှဝေဖို့ သဘောတူထားတဲ့ စကားလေးပါ။\n\n"
+                    +text_to_share)
+            except TelegramError:
+                logging.info("Could not deliver optional rejection note")
+        await update.effective_message.reply_text(
+            "💌 စကားလေး ပို့ပြီးပြီနော်။" if saved else
+            "🌷 စကားလေး မပို့နိုင်တော့ဘူးနော်။",
+            reply_markup=pv_matching.MAIN_KEYBOARD)
+        return True
     return False
