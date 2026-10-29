@@ -14,6 +14,7 @@ import pv_requests_menu
 import pv_owner
 import growth
 import group_events
+import notifications
 from conversation_starters import after_mutual_acceptance
 import repository as db
 from responses import say
@@ -426,7 +427,7 @@ async def start(update, context):
     # Fresh /start discards private in-memory submenus left by an interrupted flow.
     user_data=getattr(context,"user_data",None)
     if user_data is not None:
-        for key in ("pv_profile","pv_requests","pv_match_confirm","pv_intro_choice_gid","pv_owner_pending","pv_rejection_note"):
+        for key in ("pv_profile","pv_requests","pv_match_confirm","pv_intro_choice_gid","pv_owner_pending","pv_rejection_note","pv_notifications"):
             user_data.pop(key,None)
     drafts.pop(update.effective_user.id,None)
     if getattr(context,"bot",None) is not None:
@@ -438,6 +439,7 @@ async def start(update, context):
                 task.cancel()
             await pv_matching.retire(context.bot,update.effective_user.id,active["card_message_id"])
     await msg.reply_text(say("welcome", update.effective_user.id), reply_markup=pv_matching.MAIN_KEYBOARD)
+    await notifications.maybe_expiring_digest(update,context)
     return ConversationHandler.END
 
 async def register(update, context):
@@ -1500,6 +1502,8 @@ async def private_outgoing_command(update,context):
 
 
 async def pv_profile_text_command(update,context):
+    if await notifications.handle(update,context):
+        return
     if await pv_requests_menu.handle_rejection_note(update,context):
         return
     if await pv_requests_menu.handle(update,context):
@@ -1537,6 +1541,10 @@ async def private_keyboard_command(update,context):
         await pv_requests_menu.open_menu(update,context,"outgoing")
     elif key==growth.INVITE_GROUP:
         await growth.group_invite(update,context)
+    elif key==notifications.MAIN_NOTIFY:
+        context.user_data.pop("pv_profile",None)
+        context.user_data.pop("pv_requests",None)
+        await notifications.open_menu(update,context)
     elif key==pv_matching.MAIN_HELP:
         await update.effective_message.reply_text(
             "🌷 Bot ရှိတဲ့ Group မှာ /register နဲ့ Profile အရင်ဖန်တီးပေးနော်။\\n"
@@ -1598,13 +1606,14 @@ def handlers():
              CommandHandler("event",group_events.weekly_event),
              CallbackQueryHandler(group_events.event_callback,pattern=r"^gevent:"),
              CommandHandler("growth",pv_owner.growth_panel,filters.ChatType.PRIVATE),
+             CommandHandler("notifications",notifications.open_menu,filters.ChatType.PRIVATE),
             CallbackQueryHandler(browse_callback, pattern=r"^browse:"),
             CallbackQueryHandler(ask_callback, pattern=r"^ask:"),
             CallbackQueryHandler(ask_confirm_callback, pattern=r"^ask_(confirm:|cancel:)"), CallbackQueryHandler(reply_callback, pattern=r"^reply:"),
             CallbackQueryHandler(pv_matching.confirm,pattern=r"^pvreq"),
             CommandHandler("startmatch",pv_matching.select_source_group,filters.ChatType.PRIVATE),
             MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND &
-                filters.Regex(r"^(🔎 Profile ရှာမယ်|🎀 ကိုယ့် Profile|💌 ရောက်လာတဲ့စာတွေ|📮 ပို့ထားတဲ့စာတွေ|🌷 အသုံးပြုပုံ|🌷 Group ထဲ ဖိတ်မယ်)$"),
+                filters.Regex(r"^(🔎 Profile ရှာမယ်|🎀 ကိုယ့် Profile|💌 ရောက်လာတဲ့စာတွေ|📮 ပို့ထားတဲ့စာတွေ|🌷 အသုံးပြုပုံ|🌷 Group ထဲ ဖိတ်မယ်|🔔 သတိပေးစာ)$"),
                 private_keyboard_command),
             MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND &
                 filters.Regex(r"^(👎 ကျော်မယ်|💌 တောင်းမယ်|❌ ပွဲသိမ်းမယ်|💌 တကယ်တောင်းမယ်|🌷 စိတ်ပြောင်းပြီ)$"),
