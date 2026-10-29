@@ -297,7 +297,8 @@ async def handle_reply(update,context):
         key=profile_key(session)
         if not key:
             return
-        target=await db.get_profile(key[0],key[1])
+        target=await verified_target(context.bot,
+            {"user_id":key[0],"group_id":key[1]})
         source=await db.get_profile(uid,session["source_group_id"])
         if not target or not source:
             await context.bot.send_message(uid,"🌷 ဒီ Profile လေး မရှိတော့ဘူးနော်။ ကျော်ကြည့်ပေးပါ။")
@@ -314,16 +315,22 @@ async def handle_reply(update,context):
     if text!=SKIP:
         return
     next_pos=session["position"]+1
-    if next_pos>=len(keys):
-        await context.bot.send_message(uid,"🌷 အကုန်ကြည့်ပြီးပြီနော်။ /match နဲ့ နောက်တစ်ခေါက် ပြန်စနိုင်တယ်။",
-                                       reply_markup=MAIN_KEYBOARD)
+    target=None
+    while next_pos<len(keys):
+        target=await verified_target(context.bot,
+            {"user_id":keys[next_pos][0],"group_id":keys[next_pos][1]})
+        if target:
+            break
+        next_pos+=1
+    if target is None:
         await finish(uid)
+        task=_tasks.pop(uid,None)
+        if task and not task.done():
+            task.cancel()
         await retire(context.bot,uid,session["card_message_id"])
-        return
-    target=await db.get_profile(keys[next_pos][0],keys[next_pos][1])
-    if not target:
-        await set_position(uid,session["card_message_id"],next_pos)
-        await context.bot.send_message(uid,"🌷 ဒီ Profile လေး မရှိတော့ဘူးနော်။ နောက်တစ်ယောက်ကို ကျော်ကြည့်ပါ။")
+        await context.bot.send_message(
+            uid,"🌷 ဒီအကြိမ် ကြည့်စရာ Profile ကတ်တွေ ကုန်သွားပြီနော်။",
+            reply_markup=MAIN_KEYBOARD)
         return
     caption=await match_caption(context.bot,target)
     deleted=await retire(context.bot,uid,session["card_message_id"])
@@ -365,8 +372,12 @@ async def confirm(update,context):
     if not session or session["source_group_id"]!=source_gid or profile_key(session)!=[target_id,target_gid]:
         await q.answer("Profile ကတ်လေး ပြောင်းသွားပြီနော်။",show_alert=True)
         return
-    if not (await db.group_settings(source_gid))["requests"]:
-        await q.answer("ဒီဝိုင်းမှာ တောင်းခွင့် ခဏပိတ်ထားတယ်နော်။",show_alert=True)
+    source_settings=await db.group_settings(source_gid)
+    destination_settings=await db.group_settings(target_gid)
+    if (not source_settings["requests"] or
+        not destination_settings["requests"] or
+        not destination_settings["matchmaking"]):
+        await q.answer("ဒီ Group တစ်ခုမှာ တောင်းခွင့် ခဏပိတ်ထားတယ်နော်။",show_alert=True)
         return
     if not await member(context.bot,source_gid,uid) or not await member(context.bot,target_gid,target_id):
         await q.answer("Group ထဲမှာ မရှိတော့သူ ပါနေတယ်နော်။",show_alert=True)
