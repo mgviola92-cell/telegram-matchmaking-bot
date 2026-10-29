@@ -21,10 +21,10 @@ def pv(text=""):
 
 class NotificationContracts(unittest.TestCase):
     def test_home_keyboard_has_opt_in_menu(self):
-        labels=[label for row in pv_matching.MAIN_KEYBOARD.keyboard for label in row]
+        labels=[button.text for row in pv_matching.MAIN_KEYBOARD.keyboard for button in row]
         self.assertIn(notifications.MAIN_NOTIFY,labels)
-        self.assertIn(notifications.ENABLE,[x for row in notifications.MENU.keyboard for x in row])
-        self.assertIn(notifications.DISABLE,[x for row in notifications.MENU.keyboard for x in row])
+        self.assertIn(notifications.ENABLE,[button.text for row in notifications.MENU.keyboard for button in row])
+        self.assertIn(notifications.DISABLE,[button.text for row in notifications.MENU.keyboard for button in row])
 
     def test_reminders_have_no_background_poller_or_media_storage(self):
         src=(ROOT/"notifications.py").read_text(encoding="utf-8")
