@@ -570,12 +570,14 @@ async def bio_step(update, context):
     drafts.pop(update.effective_user.id, None)
     gid = d["group_id"]
     intro_enabled = (await db.group_settings(gid))["intros"]
-    buttons = K([[B("🎀 Group မှာ မိတ်ဆက်မယ်",callback_data=f"intro_yes:{gid}")],
-                 [B("🌷 မိတ်ဆက်မပို့တော့ဘူး",callback_data="intro_skip")]]) if intro_enabled else None
+    if intro_enabled:
+        context.user_data["pv_intro_choice_gid"]=gid
+    else:
+        context.user_data.pop("pv_intro_choice_gid",None)
     await update.message.reply_text(
         "💖 Profile လေး သိမ်းပြီးပြီ။ Group မှာ မိတ်ဆက်ကတ်တင်မလား? မတင်လည်း /match သုံးလို့ရတယ်နော်။"
         if intro_enabled else say("profile_saved",update.effective_user.id),
-        reply_markup=buttons)
+        reply_markup=REG_INTRO_KEYBOARD if intro_enabled else pv_matching.MAIN_KEYBOARD)
     return ConversationHandler.END
 
 async def cancel(update, context):
@@ -1260,6 +1262,40 @@ async def profile_delete_do(update, context):
     await cleanup_deleted_profile(context.bot,q.from_user.id,result)
 
 
+async def intro_choice_reply(update,context):
+    """Private registration/share decision with Telegram reply buttons only."""
+    if update.effective_chat.type!="private":
+        return
+    answer=update.effective_message.text
+    gid=context.user_data.pop("pv_intro_choice_gid",None)
+    if answer==REG_INTRO_NO or not gid:
+        await update.effective_message.reply_text(
+            "🌷 မိတ်ဆက်ကတ်ကို အခု မပို့တော့ဘူးနော်။",
+            reply_markup=pv_matching.MAIN_KEYBOARD)
+        return
+    uid=update.effective_user.id
+    p=await db.get_profile(uid,gid)
+    if (not p or not await member(context.bot,gid,uid)
+        or not (await db.group_settings(gid))["intros"]):
+        await update.effective_message.reply_text(
+            "🌷 ဒီ Group မှာ မိတ်ဆက်ကတ် မပို့နိုင်တော့ဘူးနော်။",
+            reply_markup=pv_matching.MAIN_KEYBOARD)
+        return
+    try:
+        intro=await show_profile(context.bot,gid,p,K([[B(
+            "💌 မိတ်ဆက်ခွင့် တောင်းမယ်",
+            callback_data=f"intro_view:{uid}:{gid}")]]))
+        await db.remember_intro_message(uid,gid,intro.message_id)
+    except TelegramError:
+        logging.exception("PV introduction could not be published")
+        await update.effective_message.reply_text(
+            "🌷 Group ထဲ မိတ်ဆက်ကတ် မပို့နိုင်သေးဘူးနော်။",
+            reply_markup=pv_matching.MAIN_KEYBOARD)
+        return
+    await update.effective_message.reply_text(
+        say("intro_published",uid),reply_markup=pv_matching.MAIN_KEYBOARD)
+
+
 async def intro_callback(update, context):
     """Only the profile owner may voluntarily publish an introduction."""
     q = update.callback_query
@@ -1494,7 +1530,8 @@ def handlers():
     registration = ConversationHandler(
         entry_points=[CommandHandler("start", start, filters.ChatType.PRIVATE)],
         states={
-            CONFIRM_AGE: [CallbackQueryHandler(confirm_age, pattern=r"^age_confirm:(yes|no)$")],
+            CONFIRM_AGE: [CallbackQueryHandler(confirm_age, pattern=r"^age_confirm:(yes|no)$"),
+                MessageHandler(filters.ChatType.PRIVATE & filters.Regex(r"^(💗 ပြည့်ပြီးပါပြီ|🌷 မပြည့်သေးပါဘူး)$"),confirm_age_reply)],
             NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, name_step)],
             AGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, age_step)],
             LOCATION: [CommandHandler("skip", location_step),
@@ -1502,7 +1539,8 @@ def handlers():
             MEDIA: [MessageHandler(filters.PHOTO | filters.VIDEO, media_step)],
             BIO: [CommandHandler("skip", bio_step), MessageHandler(filters.TEXT & ~filters.COMMAND, bio_step)],
         },
-        fallbacks=[CommandHandler("cancel", cancel)],
+        fallbacks=[CommandHandler("cancel", cancel),
+                   MessageHandler(filters.ChatType.PRIVATE & filters.Regex(r"^❌ စာရင်းသွင်းတာ ရပ်မယ်$"),cancel)],
         allow_reentry=True,
     )
     profile_editor = ConversationHandler(
@@ -1548,6 +1586,7 @@ def handlers():
             CallbackQueryHandler(profile_delete_ask,pattern=r"^profile_delete_ask:"),
             CallbackQueryHandler(profile_delete_do,pattern=r"^profile_delete_(do:|cancel$)"),
             CallbackQueryHandler(intro_callback,pattern=r"^intro_(yes:|skip$)"),
+            MessageHandler(filters.ChatType.PRIVATE & filters.Regex(r"^(📣 Group မှာ မိတ်ဆက်မယ်|🌷 မိတ်ဆက်မပို့တော့ဘူး)$"),intro_choice_reply),
             CallbackQueryHandler(reason_start,pattern=r"^reason_skip$"),
             CallbackQueryHandler(reason_finish,pattern=r"^reason_(send|cancel)$"),
             CallbackQueryHandler(intro_view,pattern=r"^intro_view:"),
