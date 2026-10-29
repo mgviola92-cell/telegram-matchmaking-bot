@@ -439,7 +439,8 @@ async def start(update, context):
                 task.cancel()
             await pv_matching.retire(context.bot,update.effective_user.id,active["card_message_id"])
     await msg.reply_text(say("welcome", update.effective_user.id), reply_markup=pv_matching.MAIN_KEYBOARD)
-    await notifications.maybe_expiring_digest(update,context)
+    if getattr(context,"bot",None) is not None:
+        await notifications.maybe_expiring_digest(update,context)
     return ConversationHandler.END
 
 async def register(update, context):
