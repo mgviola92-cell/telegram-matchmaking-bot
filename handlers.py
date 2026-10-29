@@ -11,6 +11,7 @@ from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, C
 import pv_matching
 import pv_profile
 import pv_requests_menu
+import pv_owner
 import repository as db
 from responses import say
 from notices import say_notice
@@ -147,28 +148,17 @@ def is_bot_owner(update):
     return bool(owner_id and user and user.id == owner_id)
 
 async def owner_panel(update, context):
-    """A private-only owner panel. Others get no messages and no error replies."""
-    if not is_bot_owner(update) or update.effective_chat.type != "private":
-        return ConversationHandler.END
-    group_id = await db.get_owner_qa_group(update.effective_user.id)
-    if not group_id:
-        await update.effective_message.reply_text(
-            "🧪 <b>Owner QA Setup</b>\n"
-            "ဒီတစ်ခါပဲ Test Group ID လေး ထည့်ပေးပါ။\n"
-            "Group ID က -100 နဲ့ စတဲ့ Telegram Numeric ID ဖြစ်ရမယ်။\n"
-            "/cancel နဲ့ ပြန်ထွက်နိုင်ပါတယ်။",
-            parse_mode="HTML")
-        return OWNER_GROUP_INPUT
-    count = await db.owner_test_request_count(update.effective_user.id,group_id)
-    await update.effective_message.reply_text(
-        f"🧪 <b>Owner QA Panel</b>\nTest Group: <code>{group_id}</code>\n"
-        f"ကိုယ်ပို့ထားသော Test Request: <b>{count}</b> ခု\n"
-        "Reset လုပ်ပြီးရင် လက်ခံသူက Request အသစ်ကို ပြန်ဖြေနိုင်ပါတယ်။",
-        parse_mode="HTML",
-        reply_markup=K([[B("♻️ Test Request Reset",callback_data="owner:ask_reset")],
-                        [B("⚙️ Test Group ပြောင်းမယ်",callback_data="owner:enter_group")],
-                        [B("🔄 ပြန်စစ်မယ်",callback_data="owner:refresh")]]))
-    return ConversationHandler.END
+    """Owner QA is now Telegram-native private ReplyKeyboard."""
+    return await pv_owner.open_panel(update,context)
+
+
+async def owner_group_reply_begin(update,context):
+    return await pv_owner.change_group(update,context)
+
+
+async def owner_reply_command(update,context):
+    await pv_owner.handle(update,context)
+
 
 async def owner_change_group(update, context):
     q = update.callback_query
@@ -208,12 +198,12 @@ async def owner_group_input(update, context):
     await update.message.reply_text(
         f"✅ Test Group <code>{group_id}</code> ကို သိမ်းထားပြီးပြီ။\n"
         "နောက်တစ်ကြိမ် /owner ဖွင့်ရင် ထပ်မမေးတော့ဘူး။",
-        parse_mode="HTML")
+        parse_mode="HTML",reply_markup=pv_owner.MENU)
     return ConversationHandler.END
 
 async def owner_group_cancel(update, context):
     if is_bot_owner(update) and update.effective_chat.type == "private":
-        await update.message.reply_text("🌷 Owner Setup ကို ရပ်ထားလိုက်ပြီ။")
+        await update.message.reply_text("🌷 Owner Setup ကို ရပ်ထားလိုက်ပြီ။",reply_markup=pv_matching.MAIN_KEYBOARD)
     return ConversationHandler.END
 
 async def owner_callback(update, context):
@@ -1546,13 +1536,21 @@ def handlers():
     )
     owner_setup = ConversationHandler(
         entry_points=[CommandHandler("owner",owner_panel),
-                      CallbackQueryHandler(owner_change_group,pattern=r"^owner:enter_group$")],
-        states={OWNER_GROUP_INPUT:[MessageHandler(filters.TEXT & ~filters.COMMAND,owner_group_input)]},
+                      CallbackQueryHandler(owner_change_group,pattern=r"^owner:enter_group$"),
+                      MessageHandler(filters.ChatType.PRIVATE &
+                          filters.Regex(r"^⚙️ Test Group ပြောင်းမယ်$"),owner_group_reply_begin)],
+        states={OWNER_GROUP_INPUT:[
+            MessageHandler(filters.ChatType.PRIVATE & filters.Regex(r"^🌷 မလုပ်တော့ဘူး$"),owner_group_cancel),
+            MessageHandler(filters.TEXT & ~filters.COMMAND,owner_group_input)]},
         fallbacks=[CommandHandler("cancel",owner_group_cancel)],
         allow_reentry=True,
     )
     return [registration, profile_editor, reason_editor, owner_setup,
-            CallbackQueryHandler(owner_callback,pattern=r"^owner:"), ChatMemberHandler(membership_change,ChatMemberHandler.CHAT_MEMBER), CommandHandler("register", register), CommandHandler("match", match),
+            CallbackQueryHandler(owner_callback,pattern=r"^owner:"),
+            MessageHandler(filters.ChatType.PRIVATE &
+                filters.Regex(r"^(♻️ Test Request Reset|✅ Test Requests Reset|🌷 မလုပ်တော့ဘူး|🔄 Panel ပြန်ကြည့်မယ်)$"),
+                owner_reply_command),
+            ChatMemberHandler(membership_change,ChatMemberHandler.CHAT_MEMBER), CommandHandler("register", register), CommandHandler("match", match),
             CallbackQueryHandler(browse_callback, pattern=r"^browse:"),
             CallbackQueryHandler(ask_callback, pattern=r"^ask:"),
             CallbackQueryHandler(ask_confirm_callback, pattern=r"^ask_(confirm:|cancel:)"), CallbackQueryHandler(reply_callback, pattern=r"^reply:"),
