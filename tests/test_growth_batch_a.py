@@ -8,6 +8,7 @@ import growth
 import handlers
 import pv_owner
 import pv_profile
+import repository
 
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 
@@ -93,6 +94,12 @@ class GrowthFlowTests(unittest.IsolatedAsyncioTestCase):
              patch.object(growth.db,"resolve_profile_share_token",AsyncMock()) as lookup:
             await growth.show_shared_profile(u,ctx,"AVeryLongOpaqueRandomToken")
             lookup.assert_not_awaited()
+
+    async def test_profile_prompt_rejects_multiline_input(self):
+        with self.assertRaises(ValueError):
+            await repository.save_profile_prompt(123,"Hello\\nWorld")
+        with self.assertRaises(ValueError):
+            await repository.save_profile_prompt(123,"X"*121)
 
     async def test_interest_selection_is_canonical(self):
         u=make_update(growth.INTEREST_TAGS[0])
