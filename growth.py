@@ -24,7 +24,7 @@ INVITE_GROUP = "🌷 Group ထဲ ဖိတ်မယ်"
 def interests_keyboard(selected=()):
     from telegram import ReplyKeyboardMarkup
     rows = [[INTEREST_TAGS[i], INTEREST_TAGS[i+1]] for i in range(0,len(INTEREST_TAGS),2)]
-    rows += [[INTEREST_CLEAR,INTEREST_FINISH]]
+    rows += [[INTEREST_CLEAR,INTEREST_FINISH],["⬅️ နောက်ပြန်","🏠 ပင်မ Menu"]]
     return ReplyKeyboardMarkup(rows,resize_keyboard=True,is_persistent=True)
 
 
