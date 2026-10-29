@@ -105,3 +105,35 @@ class PrivateResponseJourney(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(ok)
         self.assertEqual(ctx.user_data["pv_requests"]["kind"],"inbox")
         show.assert_awaited_once()
+
+class RejectionPrivacyJourney(unittest.IsolatedAsyncioTestCase):
+    async def test_optional_rejection_note_requires_explicit_confirmation(self):
+        msg=SimpleNamespace(text=pv_requests_menu.NOTE_WRITE,reply_text=AsyncMock())
+        update=SimpleNamespace(effective_chat=SimpleNamespace(type="private"),
+            effective_user=SimpleNamespace(id=92),effective_message=msg)
+        ctx=SimpleNamespace(
+            user_data={"pv_rejection_note":{"rid":17,"mode":"choose"}},
+            bot=SimpleNamespace(send_message=AsyncMock()))
+        with patch.object(pv_requests_menu.db,"save_rejection_reason",
+             AsyncMock(return_value={"sender_id":91})) as save:
+            self.assertTrue(await pv_requests_menu.handle_rejection_note(update,ctx))
+            save.assert_not_awaited()
+            msg.text="ဒီတစ်ခေါက် မရနိုင်သေးပါ"
+            await pv_requests_menu.handle_rejection_note(update,ctx)
+            save.assert_not_awaited()
+            self.assertEqual(ctx.user_data["pv_rejection_note"]["mode"],"confirm")
+            msg.text=pv_requests_menu.NOTE_CONFIRM
+            await pv_requests_menu.handle_rejection_note(update,ctx)
+        save.assert_awaited_once_with(17,92,"ဒီတစ်ခေါက် မရနိုင်သေးပါ")
+        self.assertNotIn("pv_rejection_note",ctx.user_data)
+
+
+class SafeRequestInsertionContract(unittest.TestCase):
+    def test_request_insert_serializes_against_profile_delete(self):
+        from pathlib import Path
+        source=(Path(__file__).resolve().parents[1]/"repository.py").read_text(encoding="utf-8")
+        req=source.split("async def send_request",1)[1].split(
+            "async def incoming_requests",1)[0]
+        self.assertIn("FOR SHARE",req)
+        self.assertIn("adult_self_confirmed",req)
+        self.assertIn("if len({row",req)
