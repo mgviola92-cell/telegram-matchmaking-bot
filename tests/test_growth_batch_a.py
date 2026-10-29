@@ -97,7 +97,7 @@ class GrowthFlowTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_profile_prompt_rejects_multiline_input(self):
         with self.assertRaises(ValueError):
-            await repository.save_profile_prompt(123,"Hello\\nWorld")
+            await repository.save_profile_prompt(123,"Hello\nWorld")
         with self.assertRaises(ValueError):
             await repository.save_profile_prompt(123,"X"*121)
 
