@@ -90,6 +90,7 @@ class GrowthBatchBFlows(unittest.IsolatedAsyncioTestCase):
         with patch("handlers.is_admin",AsyncMock(return_value=True)), \
              patch.object(group_events.db,"group_settings",
                          AsyncMock(return_value={"questions":False})), \
+             patch.object(group_events.db,"recent_daily_question_ids", AsyncMock(return_value=[])), \
              patch.object(group_events.db,"claim_daily_question",AsyncMock()) as claim:
             await group_events.daily_question(u,ctx)
             claim.assert_not_awaited()
@@ -102,12 +103,29 @@ class GrowthBatchBFlows(unittest.IsolatedAsyncioTestCase):
         with patch("handlers.is_admin",AsyncMock(return_value=True)), \
              patch.object(group_events.db,"group_settings",
                           AsyncMock(return_value={"questions":True})), \
+             patch.object(group_events.db,"recent_daily_question_ids", AsyncMock(return_value=[])), \
              patch.object(group_events.db,"claim_daily_question",
                           AsyncMock(return_value={"local_day":"2026-10-29"})), \
              patch.object(group_events.db,"question_posted",AsyncMock()) as posted:
             await group_events.daily_question(u,ctx)
         bot.send_message.assert_awaited_once()
         posted.assert_awaited_once_with(-100123,"2026-10-29",444)
+
+    async def test_question_rotation_skips_last_nine(self):
+        u=group_update()
+        bot=SimpleNamespace(send_message=AsyncMock(
+            return_value=SimpleNamespace(message_id=555)))
+        ctx=SimpleNamespace(bot=bot)
+        with patch("handlers.is_admin",AsyncMock(return_value=True)), \
+             patch.object(group_events.db,"group_settings",
+                          AsyncMock(return_value={"questions":True})), \
+             patch.object(group_events.db,"recent_daily_question_ids",
+                          AsyncMock(return_value=list(range(9)))), \
+             patch.object(group_events.db,"claim_daily_question",
+                          AsyncMock(return_value={"local_day":"2026-10-29"})) as claim, \
+             patch.object(group_events.db,"question_posted",AsyncMock()):
+            await group_events.daily_question(u,ctx)
+            self.assertEqual(claim.await_args.args[1],9)
 
     async def test_question_failed_send_does_not_consume_slot(self):
         u=group_update()
@@ -116,6 +134,7 @@ class GrowthBatchBFlows(unittest.IsolatedAsyncioTestCase):
         with patch("handlers.is_admin",AsyncMock(return_value=True)), \
              patch.object(group_events.db,"group_settings",
                           AsyncMock(return_value={"questions":True})), \
+             patch.object(group_events.db,"recent_daily_question_ids", AsyncMock(return_value=[])), \
              patch.object(group_events.db,"claim_daily_question",
                           AsyncMock(return_value={"local_day":"2026-10-29"})), \
              patch.object(group_events.db,"release_daily_question",AsyncMock()) as release:
