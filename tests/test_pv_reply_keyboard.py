@@ -85,7 +85,7 @@ class DualGroupDeliveryTests(unittest.IsolatedAsyncioTestCase):
         async def profile(uid,gid):
             return sender if uid==11 else recipient
         with patch.object(pv_matching,"get_session",AsyncMock(return_value=session)), \
-             patch.object(pv_matching.db,"group_settings",AsyncMock(return_value={"requests":True})), \
+             patch.object(pv_matching.db,"group_settings",AsyncMock(return_value={"requests":True,"matchmaking":True})), \
              patch.object(handlers,"member",AsyncMock(return_value=True)), \
              patch.object(pv_matching.db,"get_profile",side_effect=profile), \
              patch.object(pv_matching.db,"send_request",AsyncMock(return_value={"id":17})), \
