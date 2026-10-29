@@ -200,36 +200,56 @@ async def profile_at(user_id, group_id):
     return await get_profile(user_id,group_id)
 
 async def delete_profile(user_id, group_id):
-    """Delete only the owner's group profile and invalidate affected pending requests.
+    """Atomically delete the global profile, requests, and all browse cursors.
 
-    Return request participants so the caller can notify them outside the transaction.
+    Return message IDs for best-effort Telegram cleanup *after* committing.
+    Unlike the old implementation, request references are captured before their
+    rows are deleted; cooldowns disappear with the profile.
     """
-    p = await pool()
+    p=await pool()
     async with p.acquire() as c:
         async with c.transaction():
-            await c.execute("SELECT pg_advisory_xact_lock($1,$2)", user_id % 2147483647, group_id % 2147483647)
-            found = await c.fetchrow(
-                "DELETE FROM profiles WHERE user_id=$1 RETURNING user_id,group_id",
-                user_id)
+            await c.execute("SELECT pg_advisory_xact_lock($1,$2)",
+                            user_id % 2147483647, group_id % 2147483647)
+            found=await c.fetchrow(
+                "DELETE FROM profiles WHERE user_id=$1 RETURNING user_id,group_id",user_id)
             if not found:
                 return None
-            pending = await c.fetch("""UPDATE requests SET status='withdrawn'
-                WHERE status='pending' AND
-                (sender_id=$1 OR recipient_id=$1)
-                RETURNING sender_id,recipient_id""", user_id)
-            old_cards = await c.fetch("""DELETE FROM browse_sessions
-                WHERE viewer_id=$1 OR EXISTS
-                     (SELECT 1 FROM jsonb_array_elements(profile_keys) AS item(value)
-                      WHERE (item.value->>0)::bigint=$1)
-                RETURNING viewer_id,group_id,message_id""", user_id)
+            affected=await c.fetch("""DELETE FROM requests
+                WHERE sender_id=$1 OR recipient_id=$1
+                RETURNING id,sender_id,recipient_id,sender_group_id,
+                    recipient_group_id,status,group_card_message_id,
+                    group_prompt_message_id,sender_card_message_id""",user_id)
+            group_cards=await c.fetch("""DELETE FROM browse_sessions
+                WHERE viewer_id=$1 OR EXISTS(
+                    SELECT 1 FROM jsonb_array_elements(profile_keys) AS item(value)
+                    WHERE (item.value->>0)::bigint=$1)
+                RETURNING viewer_id,group_id,message_id""",user_id)
+            pv_cards=await c.fetch("""DELETE FROM pv_match_sessions
+                WHERE user_id=$1 OR EXISTS(
+                    SELECT 1 FROM jsonb_array_elements(profile_keys) AS item(value)
+                    WHERE (item.value->>0)::bigint=$1)
+                RETURNING user_id,card_message_id""",user_id)
+            intros=await c.fetch("""DELETE FROM profile_intro_messages
+                WHERE user_id=$1 RETURNING group_id,message_id""",user_id)
             await c.execute("""DELETE FROM viewed_profiles
                 WHERE viewer_id=$1 OR target_id=$1""",user_id)
             await c.execute("DELETE FROM profile_presence WHERE user_id=$1",user_id)
-            # A removed profile should not keep past cooldowns for its group.
-            await c.execute("""DELETE FROM requests WHERE status<>'pending' AND
-                (sender_id=$1 OR recipient_id=$1)""",user_id)
-            return {"affected": [dict(row) for row in pending],
-                    "old_cards": [dict(row) for row in old_cards]}
+            return {
+                "affected":[dict(r) for r in affected if r["status"]=="pending"],
+                "affected_requests":[dict(r) for r in affected],
+                "old_cards":[dict(r) for r in group_cards],
+                "pv_cards":[dict(r) for r in pv_cards],
+                "intro_cards":[dict(r) for r in intros],
+            }
+
+async def remember_intro_message(user_id,group_id,message_id):
+    """Keep only Telegram message references, not image/video bytes."""
+    p=await pool()
+    async with p.acquire() as c:
+        await c.execute("""INSERT INTO profile_intro_messages
+            (user_id,group_id,message_id) VALUES($1,$2,$3)
+            ON CONFLICT DO NOTHING""",user_id,group_id,message_id)
 
 async def update_profile_media(user_id, group_id, media_type, file_id):
     if media_type not in ("photo","video"):
