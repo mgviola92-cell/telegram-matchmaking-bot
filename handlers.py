@@ -5,7 +5,7 @@ import html
 import json
 import logging
 import os
-from telegram import InlineKeyboardButton as B, InlineKeyboardMarkup as K, InputMediaPhoto, InputMediaVideo
+from telegram import InlineKeyboardButton as B, InlineKeyboardMarkup as K, InputMediaPhoto, InputMediaVideo, ReplyKeyboardMarkup
 from telegram.error import TelegramError
 from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, ChatMemberHandler, filters, ConversationHandler
 import pv_matching
@@ -21,6 +21,21 @@ EDIT_TEXT, EDIT_MEDIA = range(5, 7)
 REJECTION_TEXT = 7
 drafts = {}
 _browse_timer_tasks = {}
+REG_CANCEL = "❌ စာရင်းသွင်းတာ ရပ်မယ်"
+REG_SKIP = "🌷 ကျော်မယ်"
+REG_YES = "💗 ပြည့်ပြီးပါပြီ"
+REG_NO = "🌷 မပြည့်သေးပါဘူး"
+REG_INTRO_YES = "📣 Group မှာ မိတ်ဆက်မယ်"
+REG_INTRO_NO = "🌷 မိတ်ဆက်မပို့တော့ဘူး"
+REG_ADULT_KEYBOARD = ReplyKeyboardMarkup([[REG_YES, REG_NO]],
+    resize_keyboard=True,is_persistent=True)
+REG_EDIT_KEYBOARD = ReplyKeyboardMarkup([[REG_CANCEL]],
+    resize_keyboard=True,is_persistent=True)
+REG_SKIP_KEYBOARD = ReplyKeyboardMarkup([[REG_SKIP],[REG_CANCEL]],
+    resize_keyboard=True,is_persistent=True)
+REG_INTRO_KEYBOARD = ReplyKeyboardMarkup([[REG_INTRO_YES,REG_INTRO_NO]],
+    resize_keyboard=True,is_persistent=True)
+
 
 async def _expire_browse(bot, uid, gid, message_id, delay):
     try:
@@ -416,7 +431,7 @@ async def start(update, context):
             await msg.reply_text("🎀 မိတ်ဆက်ကတ် ရှိပြီးသားနော်။ အောက်က Menu ကနေ ဆက်သုံးနိုင်တယ်။",reply_markup=pv_matching.MAIN_KEYBOARD)
             return ConversationHandler.END
         drafts[update.effective_user.id] = {"group_id": gid}
-        await msg.reply_text("💌 လူတောင်းပွဲမှာ ပါဝင်ဖို့ အသက် ၁၈ နှစ် ပြည့်ပြီးပြီလား?", reply_markup=K([[B("💗 ပြည့်ပြီးပါပြီ", callback_data="age_confirm:yes")], [B("🌷 မပြည့်သေးပါဘူး", callback_data="age_confirm:no")]]))
+        await msg.reply_text("💌 လူတောင်းပွဲမှာ ပါဝင်ဖို့ အသက် ၁၈ နှစ် ပြည့်ပြီးပြီလား?", reply_markup=REG_ADULT_KEYBOARD)
         return CONFIRM_AGE
     await msg.reply_text(say("welcome", update.effective_user.id), reply_markup=pv_matching.MAIN_KEYBOARD)
     return ConversationHandler.END
@@ -435,6 +450,26 @@ async def register(update, context):
     me = await context.bot.get_me()
     url = f"https://t.me/{me.username}?start=join_{update.effective_chat.id}"
     await update.message.reply_text(say("register_invite", update.effective_user.id), reply_markup=K([[B("💗 Profile လေး ဖန်တီးမယ်", url=url)]]))
+
+async def confirm_age_reply(update,context):
+    """Use PV Reply Keyboard for one-time adult eligibility confirmation."""
+    uid=update.effective_user.id
+    if update.message.text==REG_NO:
+        drafts.pop(uid,None)
+        await update.message.reply_text(
+            "🌷 အသက် ၁၈ နှစ်ပြည့်မှ လူတောင်းပွဲမှာ ပါဝင်နိုင်မယ်နော်။",
+            reply_markup=pv_matching.MAIN_KEYBOARD)
+        return ConversationHandler.END
+    if uid not in drafts or update.message.text!=REG_YES:
+        await update.message.reply_text(
+            "🌷 အတည်ပြုချက်လေး ပြန်ရွေးပေးနော်။",reply_markup=REG_ADULT_KEYBOARD)
+        return CONFIRM_AGE
+    drafts[uid]["adult_confirmed"]=True
+    await update.message.reply_text(
+        "💗 ကိုယ့်ကို ဘယ်နာမည်လေးနဲ့ မိတ်ဆက်မလဲ?",
+        reply_markup=REG_EDIT_KEYBOARD)
+    return NAME
+
 
 async def confirm_age(update, context):
     q = update.callback_query
