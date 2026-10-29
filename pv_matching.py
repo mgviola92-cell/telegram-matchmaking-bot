@@ -52,18 +52,18 @@ async def get_session(user_id):
             WHERE user_id=$1 AND updated_at>now()-interval '3 minutes'""",user_id)
 
 
-async def save_session(user_id, group_id, message_id, keys):
+async def save_session(user_id, group_id, message_id, keys, position=0):
     p = await pool()
     async with p.acquire() as c:
         await c.execute("""INSERT INTO pv_match_sessions
             (user_id,source_group_id,card_message_id,profile_keys,position,updated_at)
-            VALUES($1,$2,$3,$4::jsonb,0,now())
+            VALUES($1,$2,$3,$4::jsonb,$5,now())
             ON CONFLICT(user_id) DO UPDATE SET
             source_group_id=excluded.source_group_id,
             card_message_id=excluded.card_message_id,
             profile_keys=excluded.profile_keys,
-            position=0,updated_at=now()""",
-            user_id,group_id,message_id,json.dumps(keys))
+            position=excluded.position,updated_at=now()""",
+            user_id,group_id,message_id,json.dumps(keys),position)
 
 
 async def set_position(user_id, old_message_id, position, new_message_id=None):
@@ -178,6 +178,26 @@ async def select_source_group(update,context):
     await begin(update,context,own[0]["group_id"])
 
 
+async def verified_target(bot,profile):
+    """Fail closed if stored group provenance is no longer valid.
+
+    Telegram's getChatMember is most reliable when the bot is group admin.
+    """
+    from handlers import member
+    uid,gid=profile["user_id"],profile["group_id"]
+    if not await member(bot,gid,uid):
+        return None
+    settings=await db.group_settings(gid)
+    if not settings["matchmaking"] or not settings["requests"]:
+        return None
+    current=await db.get_profile(uid,gid)
+    if not current or not current["adult_self_confirmed"]:
+        return None
+    resolved=dict(current)
+    resolved["group_id"]=gid
+    return resolved
+
+
 async def begin(update,context,source_group):
     from handlers import member, match_caption
     uid=update.effective_user.id
@@ -204,7 +224,17 @@ async def begin(update,context,source_group):
         return
     # Avoid duplicate cards from earlier completed sessions.
     await finish(uid)
-    profile=profiles[0]
+    first=None
+    for pos,item in enumerate(profiles):
+        first=await verified_target(context.bot,item)
+        if first:
+            break
+    if not first:
+        await update.effective_message.reply_text(
+            "🌷 လောလောဆယ် Group အဖွဲ့ဝင်ဖြစ်နေသူရဲ့ Profile မရှိသေးဘူးနော်။",
+            reply_markup=MAIN_KEYBOARD)
+        return
+    profile=first
     caption=await match_caption(context.bot,profile)
     try:
         kw=dict(caption=caption,parse_mode="HTML",reply_markup=KEYBOARD)
@@ -217,7 +247,7 @@ async def begin(update,context,source_group):
         await update.effective_message.reply_text("🌷 Profile ကတ်လေး ဖွင့်မရသေးဘူးနော်။")
         return
     await save_session(uid,source_group,card.message_id,
-                       [[p["user_id"],p["group_id"]] for p in profiles])
+                       [[p["user_id"],p["group_id"]] for p in profiles],position=pos)
     await db.mark_profile_viewed(uid,source_group,profile["user_id"],profile["group_id"])
     reset_timeout(context.bot,uid,card.message_id)
 
