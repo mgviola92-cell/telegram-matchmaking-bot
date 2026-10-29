@@ -347,7 +347,8 @@ async def reset_owner_test_requests(owner_id, test_group_id):
         return await c.fetch("""DELETE FROM requests
             WHERE sender_id=$1 AND sender_group_id=$2 AND recipient_group_id=$2
             RETURNING id,recipient_id,recipient_group_id,
-                      group_card_message_id,group_prompt_message_id""",
+                      group_card_message_id,group_prompt_message_id,
+                      sender_card_message_id""",
             owner_id,test_group_id)
 
 async def get_owner_qa_group(owner_id):
