@@ -175,3 +175,14 @@ CREATE TABLE IF NOT EXISTS profile_intro_messages (
  PRIMARY KEY(user_id,group_id,message_id)
 );
 CREATE INDEX IF NOT EXISTS profile_intro_by_user ON profile_intro_messages(user_id);
+
+-- Organic growth batch A: optional metadata on the single global profile.
+-- Media remain Telegram file IDs, and legacy profiles need no new registration.
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS interests TEXT[] NOT NULL DEFAULT '{}'::text[];
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS prompt_answer TEXT CHECK(length(prompt_answer)<=120);
+-- An opaque, persistent per-profile link secret; never place user/group IDs in share URLs.
+CREATE TABLE IF NOT EXISTS profile_share_tokens (
+ user_id BIGINT PRIMARY KEY REFERENCES profiles(user_id) ON DELETE CASCADE,
+ token TEXT NOT NULL UNIQUE CHECK(length(token) BETWEEN 20 AND 60),
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
