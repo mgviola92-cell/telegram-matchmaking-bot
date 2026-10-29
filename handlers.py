@@ -410,6 +410,17 @@ async def start(update, context):
         drafts[update.effective_user.id] = {"group_id": gid}
         await msg.reply_text("💌 လူတောင်းပွဲမှာ ပါဝင်ဖို့ အသက် ၁၈ နှစ် ပြည့်ပြီးပြီလား?", reply_markup=REG_ADULT_KEYBOARD)
         return CONFIRM_AGE
+    # Fresh /start discards private in-memory submenus left by an interrupted flow.
+    for key in ("pv_profile","pv_requests","pv_match_confirm","pv_intro_choice_gid","pv_owner_pending"):
+        context.user_data.pop(key,None)
+    drafts.pop(update.effective_user.id,None)
+    active=await pv_matching.get_session(update.effective_user.id)
+    if active:
+        await pv_matching.finish(update.effective_user.id)
+        task=pv_matching._tasks.pop(update.effective_user.id,None)
+        if task and not task.done():
+            task.cancel()
+        await pv_matching.retire(context.bot,update.effective_user.id,active["card_message_id"])
     await msg.reply_text(say("welcome", update.effective_user.id), reply_markup=pv_matching.MAIN_KEYBOARD)
     return ConversationHandler.END
 
@@ -1471,7 +1482,14 @@ async def private_outgoing_command(update,context):
 async def pv_profile_text_command(update,context):
     if await pv_requests_menu.handle(update,context):
         return
-    await pv_profile.respond(update,context)
+    if await pv_profile.respond(update,context):
+        return
+    # Any orphaned reply keyboard or unfinished edit after a deploy/restart
+    # lands safely on the private home menu rather than silently doing nothing.
+    if update.effective_chat.type=="private":
+        await update.effective_message.reply_text(
+            "🌷 အရင် Menu လေးက ပြီးသွားပြီနော်။ အောက်က ပင်မ Menu ကနေ ပြန်ရွေးနိုင်တယ်။",
+            reply_markup=pv_matching.MAIN_KEYBOARD)
 
 
 async def private_keyboard_command(update,context):
