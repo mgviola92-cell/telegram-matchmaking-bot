@@ -29,20 +29,23 @@ async def restore_profile(user_id, group_id):
 async def browse_profiles(viewer_id, group_id, limit=50):
     p = await pool()
     async with p.acquire() as c:
-        return await c.fetch("""SELECT p.user_id,COALESCE(venue.group_id,p.group_id) AS group_id,
+        return await c.fetch("""SELECT p.user_id, venue.group_id AS group_id,
                    p.display_name,p.age,p.location,p.bio,p.media_type,p.media_file_id
             FROM profiles p
-            LEFT JOIN LATERAL (
+            JOIN LATERAL (
                 SELECT group_id FROM profile_presence
                 WHERE user_id=p.user_id
                 ORDER BY last_seen_at DESC LIMIT 1
             ) venue ON true
+            LEFT JOIN group_settings target_settings
+                ON target_settings.group_id=venue.group_id
             LEFT JOIN viewed_profiles v ON
                 v.viewer_id=$1 AND v.viewer_group_id=$2
                 AND v.target_id=p.user_id AND
-                    v.target_group_id=COALESCE(venue.group_id,p.group_id)
+                    v.target_group_id=venue.group_id
             WHERE NOT p.archived AND p.adult_self_confirmed AND p.user_id<>$1
-               
+                AND COALESCE(target_settings.matchmaking,TRUE)
+                AND COALESCE(target_settings.requests,TRUE)
             ORDER BY (v.target_id IS NOT NULL), random() LIMIT $3""",viewer_id,group_id,limit)
 
 async def send_request(sender_id, sender_group_id, recipient_id, recipient_group_id):
