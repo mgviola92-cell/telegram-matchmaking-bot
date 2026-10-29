@@ -21,6 +21,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message:
         await update.message.reply_text("💘 လူတောင်းပွဲက ကြိုဆိုပါတယ်။ Bot ကို ပြင်ဆင်နေဆဲပါနော်။")
 
+async def handle_update_error(update,context):
+    """Report error category without dumping private profile messages."""
+    error=getattr(context,"error",None)
+    logging.error("Telegram update handler failed: %s",
+                  type(error).__name__ if error is not None else "unknown")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global telegram_app
@@ -28,6 +35,7 @@ async def lifespan(app: FastAPI):
         telegram_app = Application.builder().token(TOKEN).build()
         for handler in handlers():
             telegram_app.add_handler(handler)
+        telegram_app.add_error_handler(handle_update_error)
         if os.getenv("DATABASE_URL"):
             await init_schema()
         else:
