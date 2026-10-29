@@ -1259,6 +1259,8 @@ async def intro_choice_reply(update,context):
         return
     answer=update.effective_message.text
     gid=context.user_data.pop("pv_intro_choice_gid",None)
+    if gid:
+        context.user_data.pop("pv_profile",None)
     if answer==REG_INTRO_NO or not gid:
         await update.effective_message.reply_text(
             "🌷 မိတ်ဆက်ကတ်ကို အခု မပို့တော့ဘူးနော်။",
