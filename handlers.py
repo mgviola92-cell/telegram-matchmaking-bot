@@ -394,26 +394,13 @@ async def start(update, context):
         return ConversationHandler.END
     if args and args[0].startswith("reply_"):
         try:
-            rid = int(args[0][6:])
+            rid=int(args[0][6:])
         except ValueError:
-            await msg.reply_text("💌 ဒီအချစ်စာလေး ဖွင့်လို့မရတော့ဘူးနော်။")
+            await msg.reply_text("💌 ဒီဖိတ်ခေါ်စာလေးကို ဖွင့်လို့မရတော့ဘူးနော်။",
+                                 reply_markup=pv_matching.MAIN_KEYBOARD)
             return ConversationHandler.END
-        req = await db.pending_request_for_recipient(rid, update.effective_user.id)
-        if not req:
-            await msg.reply_text("🌷 ဒီအချစ်စာလေးက အဖြေပြီးသွားတာ ဒါမှမဟုတ် သက်တမ်းကုန်သွားတာ ဖြစ်နိုင်တယ်။")
-            return ConversationHandler.END
-        sender = await db.get_profile(req["sender_id"], req["sender_group_id"])
-        if not sender:
-            await msg.reply_text("💌 မိတ်ဆက်ကတ်လေး မရှိတော့ဘူးနော်။")
-            return ConversationHandler.END
-        keyboard = K([[B("💕 လက်ခံမယ်", callback_data=f"decide:{rid}:accepted")],
-                      [B("💔 ငြင်းမယ်", callback_data=f"decide:{rid}:rejected")]])
-        recipient = await db.get_profile(req["recipient_id"],req["recipient_group_id"])
-        title = await request_header(context.bot,sender,
-            recipient or {"display_name":"ဒီဝိုင်းက မိတ်ဆွေ"},rid,
-            req["sender_group_id"],req["recipient_group_id"],sender_id=req["sender_id"],recipient_id=req["recipient_id"])
-        await show_profile(context.bot, update.effective_chat.id, sender, keyboard,header=title)
-        await cleanup_request_group_messages(context.bot,rid,update.effective_user.id)
+        if await pv_requests_menu.open_incoming_direct(update,context,rid):
+            await cleanup_request_group_messages(context.bot,rid,update.effective_user.id)
         return ConversationHandler.END
     if args and args[0].startswith("join_"):
         try:
