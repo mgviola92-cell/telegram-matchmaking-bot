@@ -10,8 +10,9 @@ CONFIRM="✅ Test Requests Reset"
 CANCEL="🌷 မလုပ်တော့ဘူး"
 CHANGE="⚙️ Test Group ပြောင်းမယ်"
 REFRESH="🔄 Panel ပြန်ကြည့်မယ်"
+GROWTH="📊 ပွဲအခြေအနေ"
 HOME="🏠 ပင်မ Menu"
-MENU=ReplyKeyboardMarkup([[RESET,CHANGE],[REFRESH,HOME]],
+MENU=ReplyKeyboardMarkup([[RESET,CHANGE],[GROWTH,REFRESH],[HOME]],
     resize_keyboard=True,is_persistent=True)
 CONFIRM_MENU=ReplyKeyboardMarkup([[CONFIRM,CANCEL],[HOME]],
     resize_keyboard=True,is_persistent=True)
@@ -45,6 +46,23 @@ async def change_group(update,context):
     return OWNER_GROUP_INPUT
 
 
+async def growth_panel(update,context):
+    """Aggregated counts with no per-user or private-group disclosure."""
+    from handlers import is_bot_owner
+    if update.effective_chat.type!="private" or not is_bot_owner(update):
+        return
+    item=await db.owner_growth_summary()
+    await update.effective_message.reply_text(
+        "📊 <b>လူတောင်းပွဲ အခြေအနေ</b>\n"
+        f"🎀 Profile: {item['profiles_total']}\n"
+        f"🌱 ၇ ရက်အတွင်း Profile အသစ်: {item['profiles_new_7d']}\n"
+        f"🏡 သိထားတဲ့ Group: {item['groups_observed']}\n"
+        f"💌 ၇ ရက်အတွင်း Request: {item['requests_7d']}\n"
+        f"💕 ၇ ရက်အတွင်း အဖြေရပြီး: {item['answered_7d']}\n"
+        "အထက်က ကိန်းဂဏန်းတွေက စုစုပေါင်းအရေအတွက်တွေပဲနော်။",
+        parse_mode="HTML",reply_markup=MENU)
+
+
 async def handle(update,context):
     from handlers import is_bot_owner
     if update.effective_chat.type!="private" or not is_bot_owner(update):
@@ -56,6 +74,9 @@ async def handle(update,context):
         await update.effective_message.reply_text(
             "💗 ပင်မ Menu ကို ပြန်ရောက်ပြီနော်။",
             reply_markup=pv_matching.MAIN_KEYBOARD)
+        return True
+    if text==GROWTH:
+        await growth_panel(update,context)
         return True
     if text in (CANCEL,REFRESH):
         context.user_data.pop("pv_owner_pending",None)
