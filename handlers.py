@@ -413,7 +413,7 @@ async def start(update, context):
     # Fresh /start discards private in-memory submenus left by an interrupted flow.
     user_data=getattr(context,"user_data",None)
     if user_data is not None:
-        for key in ("pv_profile","pv_requests","pv_match_confirm","pv_intro_choice_gid","pv_owner_pending"):
+        for key in ("pv_profile","pv_requests","pv_match_confirm","pv_intro_choice_gid","pv_owner_pending","pv_rejection_note"):
             user_data.pop(key,None)
     drafts.pop(update.effective_user.id,None)
     if getattr(context,"bot",None) is not None:
@@ -1485,6 +1485,8 @@ async def private_outgoing_command(update,context):
 
 
 async def pv_profile_text_command(update,context):
+    if await pv_requests_menu.handle_rejection_note(update,context):
+        return
     if await pv_requests_menu.handle(update,context):
         return
     if await pv_profile.respond(update,context):
