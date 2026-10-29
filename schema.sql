@@ -186,3 +186,35 @@ CREATE TABLE IF NOT EXISTS profile_share_tokens (
  token TEXT NOT NULL UNIQUE CHECK(length(token) BETWEEN 20 AND 60),
  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Growth batch B: two admin-controlled, opt-in community activities.
+-- Both switches default OFF even in newly added bot groups.
+ALTER TABLE group_settings ADD COLUMN IF NOT EXISTS questions BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE group_settings ADD COLUMN IF NOT EXISTS events BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Limit group question activity to one manual post per Yangon calendar day.
+CREATE TABLE IF NOT EXISTS group_daily_questions (
+ group_id BIGINT NOT NULL,
+ local_day DATE NOT NULL,
+ prompt_id SMALLINT NOT NULL,
+ message_id BIGINT,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ PRIMARY KEY (group_id,local_day)
+);
+
+-- Limit adult group meetup invitations to one post per Yangon ISO week.
+-- Event participants are explicitly opted in, never inferred from memberships.
+CREATE TABLE IF NOT EXISTS group_weekly_events (
+ id BIGSERIAL PRIMARY KEY,
+ group_id BIGINT NOT NULL,
+ local_week DATE NOT NULL,
+ message_id BIGINT,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ UNIQUE(group_id,local_week)
+);
+CREATE TABLE IF NOT EXISTS group_event_participants (
+ event_id BIGINT NOT NULL REFERENCES group_weekly_events(id) ON DELETE CASCADE,
+ user_id BIGINT NOT NULL REFERENCES profiles(user_id) ON DELETE CASCADE,
+ joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ PRIMARY KEY(event_id,user_id)
+);
