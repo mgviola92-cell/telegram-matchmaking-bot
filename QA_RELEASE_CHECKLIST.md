@@ -14,7 +14,7 @@ without evidence.
 - [x] Automated offline scenarios cover eligible-only registration, source/target checks, cross-group card directions, response/withdrawal access, cleanup and recovery.
 - [ ] Full 2-user/2-group Telegram E2E run with real accounts. Requires test accounts and administrator-authorized groups.
 - [ ] Independent data restoration and production load tests. Requires a staging DB and realistic concurrency.
-- [ ] Block/report/moderator workflow before broad public rollout (growth/safety gate).
+- [ ] Confirm the already-agreed 18+ eligibility, consent and contact-disclosure checks, and provide an owner support contact before any broad public rollout. This is not a request to add the excluded Block/Report/Privacy growth feature.
 
 ## Manual E2E with two consenting adults
 Setup: create test Group A and test Group B. Add bot to both. Check the bot can use getChatMember for both groups (administrator access recommended). Use test accounts A and B, each in their own group, and consent to the test.
@@ -41,4 +41,4 @@ For each case, record date/time, test group labels (not private invites), expect
 A single successful manual interaction does **not** prove the entire acceptance/rejection/withdrawal/deletion matrix is working.
 
 ## Limitations and next gates
-Telegram can reject deleting older group messages or messages the bot lacks rights for. It is not possible to guarantee that any already-viewed/downloaded media is retracted from someone else's device. No forced auto-invite, no group-wide ReplyKeyboard. Need blocking/reporting and safer moderation before public scaling.
+Telegram can reject deleting older group messages or messages the bot lacks rights for. It is not possible to guarantee that any already-viewed/downloaded media is retracted from someone else's device. No forced auto-invite, no group-wide ReplyKeyboard. Before public scaling, verify established eligibility, mutual-consent and account-link privacy rules, and an owner route for serious support concerns. Do not add the excluded Block/Report/Privacy growth feature.
