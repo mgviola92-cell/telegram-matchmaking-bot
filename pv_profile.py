@@ -8,6 +8,7 @@ from telegram import ReplyKeyboardMarkup
 from telegram.error import TelegramError
 import repository as db
 import pv_matching
+import growth
 
 NAME="✏️ နာမည်ပြင်မယ်"
 AGE="🎲 ဂဏန်းပြင်မယ်"
@@ -21,7 +22,9 @@ HOME="🏠 ပင်မ Menu"
 CONFIRM="🗑 သေချာဖျက်မယ်"
 CANCEL="🌷 မဖျက်တော့ဘူး"
 SKIP="🌷 မဖော်ပြတော့ဘူး"
-MENU=ReplyKeyboardMarkup([[NAME,AGE],[CITY,BIO],[MEDIA,SHARE],[DELETE,HOME]],resize_keyboard=True,is_persistent=True)
+MENU=ReplyKeyboardMarkup([[NAME,AGE],[CITY,BIO],[MEDIA,SHARE],
+    [growth.INTEREST_PICK,growth.PROMPT_PICK],[growth.GLOBAL_SHARE],
+    [DELETE,HOME]],resize_keyboard=True,is_persistent=True)
 EDIT_MENU=ReplyKeyboardMarkup([[SKIP],[BACK,HOME]],resize_keyboard=True,is_persistent=True)
 MEDIA_MENU=ReplyKeyboardMarkup([[BACK,HOME]],resize_keyboard=True,is_persistent=True)
 DELETE_MENU=ReplyKeyboardMarkup([[CONFIRM,CANCEL],[HOME]],resize_keyboard=True,is_persistent=True)
@@ -75,6 +78,23 @@ async def respond(update,context):
         return True
     mode=state["mode"]
     if mode=="menu":
+        if text==growth.GLOBAL_SHARE:
+            await growth.share_global_profile(update,context)
+            return True
+        if text==growth.INTEREST_PICK:
+            state["mode"]="interests"
+            state["interests"]=list(p.get("interests") or [])
+            await update.effective_message.reply_text(
+                "🎨 ကြိုက်တဲ့ ဝါသနာ ၅ ခုအထိ ရွေးလို့ရတယ်နော်။ ရွေးပြီးရင် ပွဲသိမ်းခလုတ်လေး နှိပ်ပေး။",
+                reply_markup=growth.interests_keyboard(state["interests"]))
+            return True
+        if text==growth.PROMPT_PICK:
+            state["mode"]="edit"
+            state["field"]="prompt_answer"
+            await update.effective_message.reply_text(
+                "💭 ကိုယ့်ကိုယ်ကို မိတ်ဆက်တဲ့ စာတိုလေး ရေးပေးနော် (စာလုံး ၁၂၀ အတွင်း)။",
+                reply_markup=EDIT_MENU)
+            return True
         if text==SHARE:
             from handlers import member,REG_INTRO_KEYBOARD
             settings=await db.group_settings(state["group_id"])
@@ -108,6 +128,35 @@ async def respond(update,context):
         await update.effective_message.reply_text(
             hints[field],reply_markup=MEDIA_MENU if field=="media" else EDIT_MENU)
         return True
+    if mode=="interests":
+        chosen=state.get("interests",[])
+        if text==growth.INTEREST_CLEAR:
+            chosen=[]
+        elif text==growth.INTEREST_FINISH:
+            saved=await db.save_profile_interests(uid,chosen)
+            state["mode"]="menu"
+            state.pop("interests",None)
+            await update.effective_message.reply_text(
+                "🎨 ကိုယ့်ဝါသနာလေးတွေ သိမ်းထားလိုက်ပြီနော်။" if saved else "🌷 Profile မရှိတော့ဘူးနော်။",
+                reply_markup=MENU)
+            return True
+        elif text in growth.INTEREST_TAGS:
+            if text in chosen:
+                chosen.remove(text)
+            elif len(chosen)<5:
+                chosen.append(text)
+            else:
+                await update.effective_message.reply_text(
+                    "🌷 ဝါသနာ ၅ ခုအထိပဲ ရွေးလို့ရမယ်နော်။",
+                    reply_markup=growth.interests_keyboard(chosen))
+                return True
+        else:
+            return True
+        state["interests"]=chosen
+        await update.effective_message.reply_text(
+            "🎀 ရွေးထားတာ — "+(" · ".join(chosen) if chosen else "မရှိသေးဘူးနော်"),
+            reply_markup=growth.interests_keyboard(chosen))
+        return True
     if mode=="delete":
         if text==CANCEL:
             state["mode"]="menu"
@@ -126,7 +175,7 @@ async def respond(update,context):
             reply_markup=pv_matching.MAIN_KEYBOARD)
 
         return True
-    if mode!="edit" or text in (NAME,AGE,CITY,BIO,MEDIA,DELETE,SHARE):
+    if mode!="edit" or text in (NAME,AGE,CITY,BIO,MEDIA,DELETE,SHARE,growth.INTEREST_PICK,growth.PROMPT_PICK,growth.GLOBAL_SHARE):
         return False
     field=state["field"]
     if field=="media":
@@ -143,12 +192,13 @@ async def respond(update,context):
             await update.effective_message.reply_text("🌷 0 ကနေ 999999999 အတွင်း ဂဏန်းပဲ ရေးပေးနော်။")
             return True
     else:
-        limit=300 if field=="bio" else 50
+        limit=300 if field=="bio" else (120 if field=="prompt_answer" else 50)
         value="" if text==SKIP else text.strip()
         if len(value)>limit or any(x in value for x in ("\n","\r")) and field=="location":
             await update.effective_message.reply_text(f"🌷 စာလုံး {limit} အတွင်း ပြန်ရေးပေးနော်။")
             return True
-    result=await db.update_profile_text(uid,state["group_id"],field,value)
+    result=(await db.save_profile_prompt(uid,value) if field=="prompt_answer" else
+            await db.update_profile_text(uid,state["group_id"],field,value))
     state["mode"]="menu"
     state.pop("field",None)
     await update.effective_message.reply_text(
