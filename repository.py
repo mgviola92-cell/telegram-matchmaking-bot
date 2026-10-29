@@ -140,13 +140,14 @@ async def update_profile_text(user_id, group_id, field, value):
             f"UPDATE profiles SET {columns[field]}=$2 WHERE user_id=$1 AND NOT archived RETURNING *",
             user_id, value)
 
-SETTING_NAMES = ("matchmaking", "registration", "requests", "intros", "cleanup")
+SETTING_NAMES = ("matchmaking", "registration", "requests", "intros", "cleanup", "questions", "events")
+OPT_IN_GROUP_SETTINGS = {"questions", "events"}
 
 async def group_settings(group_id):
     p = await pool()
     async with p.acquire() as c:
         row = await c.fetchrow("SELECT * FROM group_settings WHERE group_id=$1", group_id)
-        return dict(row) if row else {"group_id": group_id, **{name: True for name in SETTING_NAMES}}
+        return dict(row) if row else {"group_id": group_id, **{name: name not in OPT_IN_GROUP_SETTINGS for name in SETTING_NAMES}}
 
 async def set_group_setting(group_id, name, enabled):
     if name not in SETTING_NAMES:
@@ -483,3 +484,94 @@ async def owner_growth_summary():
             (SELECT count(*) FROM requests WHERE status IN ('accepted','rejected')
               AND decided_at>=now()-interval '7 days') AS answered_7d
         """))
+
+
+# Growth batch B: all group posting is admin-triggered; zero periodic background jobs.
+async def claim_daily_question(group_id, prompt_id):
+    """Reserve a single optional post for the group's Yangon calendar day."""
+    if not 0<=prompt_id<1000:
+        raise ValueError("Invalid question ID")
+    p=await pool()
+    async with p.acquire() as c:
+        async with c.transaction():
+            await c.execute("""DELETE FROM group_daily_questions
+                WHERE group_id=$1 AND local_day<(now() AT TIME ZONE 'Asia/Yangon')::date-35""",group_id)
+            return await c.fetchrow("""INSERT INTO group_daily_questions
+                (group_id,local_day,prompt_id)
+                SELECT $1,(now() AT TIME ZONE 'Asia/Yangon')::date,$2
+                WHERE EXISTS(SELECT 1 FROM group_settings
+                    WHERE group_id=$1 AND questions)
+                ON CONFLICT(group_id,local_day) DO NOTHING
+                RETURNING group_id,local_day,prompt_id""",group_id,prompt_id)
+
+
+async def question_posted(group_id, local_day, message_id):
+    p=await pool()
+    async with p.acquire() as c:
+        await c.execute("""UPDATE group_daily_questions SET message_id=$3
+            WHERE group_id=$1 AND local_day=$2 AND message_id IS NULL""",
+            group_id,local_day,message_id)
+
+
+async def release_daily_question(group_id, local_day):
+    """Do not consume a day's slot after a known send failure."""
+    p=await pool()
+    async with p.acquire() as c:
+        await c.execute("""DELETE FROM group_daily_questions
+            WHERE group_id=$1 AND local_day=$2 AND message_id IS NULL""",group_id,local_day)
+
+
+async def claim_weekly_event(group_id):
+    """Reserve one admin-started event for the local ISO week, default OFF."""
+    p=await pool()
+    async with p.acquire() as c:
+        async with c.transaction():
+            await c.execute("""DELETE FROM group_weekly_events
+                WHERE group_id=$1 AND local_week<(now() AT TIME ZONE 'Asia/Yangon')::date-42""",group_id)
+            return await c.fetchrow("""INSERT INTO group_weekly_events(group_id,local_week)
+                SELECT $1,date_trunc('week',now() AT TIME ZONE 'Asia/Yangon')::date
+                WHERE EXISTS(SELECT 1 FROM group_settings
+                    WHERE group_id=$1 AND events)
+                ON CONFLICT(group_id,local_week) DO NOTHING
+                RETURNING id,group_id,local_week""",group_id)
+
+
+async def event_posted(event_id, group_id, message_id):
+    p=await pool()
+    async with p.acquire() as c:
+        await c.execute("""UPDATE group_weekly_events SET message_id=$3
+            WHERE id=$1 AND group_id=$2 AND message_id IS NULL""",event_id,group_id,message_id)
+
+
+async def release_weekly_event(event_id, group_id):
+    p=await pool()
+    async with p.acquire() as c:
+        await c.execute("""DELETE FROM group_weekly_events
+            WHERE id=$1 AND group_id=$2 AND message_id IS NULL""",event_id,group_id)
+
+
+async def update_event_participation(event_id, group_id, user_id, join):
+    """Return None for unavailable events; otherwise the up-to-date count.
+
+    Participant identities remain internal and are never posted to the group.
+    """
+    p=await pool()
+    async with p.acquire() as c:
+        async with c.transaction():
+            active=await c.fetchval("""SELECT 1 FROM group_weekly_events e
+                JOIN group_settings s ON s.group_id=e.group_id AND s.events
+                WHERE e.id=$1 AND e.group_id=$2 AND e.message_id IS NOT NULL
+                    AND e.local_week=date_trunc('week',now() AT TIME ZONE 'Asia/Yangon')::date""",
+                event_id,group_id)
+            if not active:
+                return None
+            if join:
+                await c.execute("""INSERT INTO group_event_participants(event_id,user_id)
+                    SELECT $1,user_id FROM profiles
+                    WHERE user_id=$2 AND adult_self_confirmed AND NOT archived
+                    ON CONFLICT(event_id,user_id) DO NOTHING""",event_id,user_id)
+            else:
+                await c.execute("""DELETE FROM group_event_participants
+                    WHERE event_id=$1 AND user_id=$2""",event_id,user_id)
+            return await c.fetchval("""SELECT count(*) FROM group_event_participants
+                WHERE event_id=$1""",event_id)
