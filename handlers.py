@@ -490,18 +490,22 @@ async def name_step(update, context):
     if not draft or not draft.get("adult_confirmed"):
         await update.message.reply_text("💌 Group ထဲက /register နဲ့ ပြန်စလိုက်နော်။")
         return ConversationHandler.END
+    if update.message.text==REG_CANCEL:
+        return await cancel(update,context)
     value = update.message.text.strip()
     if not 1 <= len(value) <= 60:
         await update.message.reply_text(say_notice("invalid_name", update.effective_user.id))
         return NAME
     drafts[update.effective_user.id]["name"] = value
-    await update.message.reply_text("🎲 Profile မှာပြချင်တဲ့ ဂဏန်းလေး ရိုက်ပေးနော်။")
+    await update.message.reply_text("🎲 Profile မှာပြချင်တဲ့ ဂဏန်းလေး ရိုက်ပေးနော်။",reply_markup=REG_EDIT_KEYBOARD)
     return AGE
 
 async def age_step(update, context):
     draft = drafts.get(update.effective_user.id)
     if not draft or not draft.get("adult_confirmed"):
         return ConversationHandler.END
+    if update.message.text==REG_CANCEL:
+        return await cancel(update,context)
     text = update.message.text.strip()
     try:
         age = int(text)
@@ -512,19 +516,21 @@ async def age_step(update, context):
         return AGE
     draft["age"] = age
     await update.message.reply_text(
-        "🏙 နေတဲ့မြို့/တိုင်းလေးပဲ ထည့်ပေးနော်။ လိပ်စာအတိအကျ မထည့်ပါနဲ့။ မဖော်ပြချင်ရင် /skip လို့ပို့ပါ။")
+        "🏙 နေတဲ့မြို့/တိုင်းလေးပဲ ထည့်ပေးနော်။ လိပ်စာအတိအကျ မထည့်ပါနဲ့။ မဖော်ပြချင်ရင် ကျော်မယ် နှိပ်ပါ။",reply_markup=REG_SKIP_KEYBOARD)
     return LOCATION
 
 async def location_step(update, context):
     draft = drafts.get(update.effective_user.id)
     if not draft or not draft.get("adult_confirmed"):
         return ConversationHandler.END
-    location = "" if update.message.text == "/skip" else update.message.text.strip()
+    if update.message.text==REG_CANCEL:
+        return await cancel(update,context)
+    location = "" if update.message.text in ("/skip",REG_SKIP) else update.message.text.strip()
     if len(location) > 50 or any(c in location for c in ("\\n", "\\r")):
         await update.message.reply_text("🌷 မြို့/တိုင်းနာမည်ကို စာလုံး ၅၀ အတွင်းပဲ ထည့်ပေးနော်။")
         return LOCATION
     draft["location"] = location or None
-    await update.message.reply_text("📸 ဓာတ်ပုံတစ်ပုံ ဒါမှမဟုတ် စက္ကန့် ၃၀ အောက် Video လေး ပို့ပေးပါ။")
+    await update.message.reply_text("📸 ဓာတ်ပုံတစ်ပုံ ဒါမှမဟုတ် စက္ကန့် ၃၀ အောက် Video လေး ပို့ပေးပါ။",reply_markup=REG_EDIT_KEYBOARD)
     return MEDIA
 
 async def media_step(update, context):
@@ -540,7 +546,7 @@ async def media_step(update, context):
         await msg.reply_text("💌 /register နဲ့ ပြန်စလိုက်နော်။")
         return ConversationHandler.END
     drafts[update.effective_user.id].update(media_type=kind, file_id=file_id)
-    await msg.reply_text("💬 ကိုယ့်အကြောင်း စာတိုလေး ရေးပေးပါ။ မရေးချင်ရင် /skip နှိပ်နိုင်ပါတယ်။")
+    await msg.reply_text("💬 ကိုယ့်အကြောင်း စာတိုလေး ရေးပေးပါ။ မရေးချင်ရင် ကျော်မယ် နှိပ်ပါ။",reply_markup=REG_SKIP_KEYBOARD)
     return BIO
 
 async def bio_step(update, context):
@@ -555,7 +561,9 @@ async def bio_step(update, context):
         drafts.pop(update.effective_user.id, None)
         await update.message.reply_text("💌 /register နဲ့ ပြန်စလိုက်နော်။")
         return ConversationHandler.END
-    bio = "" if update.message.text == "/skip" else update.message.text[:300]
+    if update.message.text==REG_CANCEL:
+        return await cancel(update,context)
+    bio = "" if update.message.text in ("/skip",REG_SKIP) else update.message.text[:300]
     await db.upsert_profile(update.effective_user.id, d["group_id"], d["name"], d["media_type"], d["file_id"], bio,
                             age=d.get("age"), location=d.get("location"))
     await db.record_profile_presence(update.effective_user.id,d["group_id"])
@@ -572,7 +580,7 @@ async def bio_step(update, context):
 
 async def cancel(update, context):
     drafts.pop(update.effective_user.id, None)
-    await update.message.reply_text("နောက်မှ ပြန်လုပ်လို့ရပါတယ်နော် 💗")
+    await update.message.reply_text("နောက်မှ ပြန်လုပ်လို့ရပါတယ်နော် 💗",reply_markup=pv_matching.MAIN_KEYBOARD)
     return ConversationHandler.END
 
 def nickname_link(nickname, user_id=None):
