@@ -1213,24 +1213,8 @@ async def profile_delete_do(update, context):
         return
     await q.answer("Profile ဖျက်ပြီးပြီ")
     await q.edit_message_caption(caption=say("profile_deleted",q.from_user.id),reply_markup=None)
-    for card in result.get("old_cards", []):
-        if card["message_id"] is None:
-            continue
-        key = (card["viewer_id"], card["group_id"])
-        timer = _browse_timer_tasks.pop(key,None)
-        if timer and not timer.done():
-            timer.cancel()
-        try:
-            await context.bot.edit_message_reply_markup(
-                chat_id=card["group_id"],message_id=card["message_id"],reply_markup=None)
-        except TelegramError:
-            logging.info("Old browse card not editable after deletion")
-    affected = {r["sender_id"] for r in result["affected"] if r["sender_id"] != q.from_user.id}
-    for uid in affected:
-        try:
-            await context.bot.send_message(uid,"💌 ပို့ထားတဲ့ မိတ်ဆက်ဖိတ်ခေါ်ချက်တစ်ခုဟာ Profile ဖျက်လိုက်လို့ မရနိုင်တော့ဘူးနော်။")
-        except TelegramError:
-            logging.info("Unable to notify affected requester")
+    from profile_cleanup import cleanup_deleted_profile
+    await cleanup_deleted_profile(context.bot,q.from_user.id,result)
 
 
 async def intro_callback(update, context):
@@ -1257,8 +1241,9 @@ async def intro_callback(update, context):
         return
     await q.answer()
     try:
-        await show_profile(context.bot,gid,p,K([[B("💌 မိတ်ဆက်ခွင့် တောင်းမယ်",
+        intro=await show_profile(context.bot,gid,p,K([[B("💌 မိတ်ဆက်ခွင့် တောင်းမယ်",
             callback_data=f"intro_view:{q.from_user.id}:{gid}")]]))
+        await db.remember_intro_message(q.from_user.id,gid,intro.message_id)
     except TelegramError:
         logging.exception("Failed to publish voluntary introduction")
         await q.message.reply_text("🌷 Group ထဲကို မိတ်ဆက်ကတ် မပို့နိုင်သေးဘူးနော်။")
