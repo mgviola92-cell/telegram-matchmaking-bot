@@ -14,13 +14,14 @@ AGE="🎲 ဂဏန်းပြင်မယ်"
 CITY="🏙 မြို့/တိုင်းပြင်မယ်"
 BIO="💬 Bio ပြင်မယ်"
 MEDIA="📸 ပုံ/Video ပြင်မယ်"
+SHARE="📣 Group မှာ မိတ်ဆက်မယ်"
 DELETE="🗑 Profile ဖျက်မယ်"
 BACK="⬅️ နောက်ပြန်"
 HOME="🏠 ပင်မ Menu"
 CONFIRM="🗑 သေချာဖျက်မယ်"
 CANCEL="🌷 မဖျက်တော့ဘူး"
 SKIP="🌷 မဖော်ပြတော့ဘူး"
-MENU=ReplyKeyboardMarkup([[NAME,AGE],[CITY,BIO],[MEDIA,DELETE],[HOME]],resize_keyboard=True,is_persistent=True)
+MENU=ReplyKeyboardMarkup([[NAME,AGE],[CITY,BIO],[MEDIA,SHARE],[DELETE,HOME]],resize_keyboard=True,is_persistent=True)
 EDIT_MENU=ReplyKeyboardMarkup([[SKIP],[BACK,HOME]],resize_keyboard=True,is_persistent=True)
 MEDIA_MENU=ReplyKeyboardMarkup([[BACK,HOME]],resize_keyboard=True,is_persistent=True)
 DELETE_MENU=ReplyKeyboardMarkup([[CONFIRM,CANCEL],[HOME]],resize_keyboard=True,is_persistent=True)
@@ -74,6 +75,20 @@ async def respond(update,context):
         return True
     mode=state["mode"]
     if mode=="menu":
+        if text==SHARE:
+            from handlers import member,REG_INTRO_KEYBOARD
+            settings=await db.group_settings(state["group_id"])
+            if not settings["intros"] or not await member(
+                context.bot,state["group_id"],uid):
+                await update.effective_message.reply_text(
+                    "🌷 ဒီ Group မှာ မိတ်ဆက်ကတ် မပို့နိုင်သေးဘူးနော်။",
+                    reply_markup=MENU)
+                return True
+            context.user_data["pv_intro_choice_gid"]=state["group_id"]
+            await update.effective_message.reply_text(
+                "📣 ကိုယ့် Profile ကို Group မှာ မိတ်ဆက်ကတ်တင်မလား?",
+                reply_markup=REG_INTRO_KEYBOARD)
+            return True
         if text==DELETE:
             state["mode"]="delete"
             await update.effective_message.reply_text(
@@ -111,7 +126,7 @@ async def respond(update,context):
             reply_markup=pv_matching.MAIN_KEYBOARD)
 
         return True
-    if mode!="edit" or text in (NAME,AGE,CITY,BIO,MEDIA,DELETE):
+    if mode!="edit" or text in (NAME,AGE,CITY,BIO,MEDIA,DELETE,SHARE):
         return False
     field=state["field"]
     if field=="media":
