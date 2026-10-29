@@ -55,6 +55,14 @@ async def send_request(sender_id, sender_group_id, recipient_id, recipient_group
     async with p.acquire() as c:
         async with c.transaction():
             await c.execute("SELECT pg_advisory_xact_lock($1,$2)",sender_id % 2147483647,recipient_id % 2147483647)
+            # Row locks serialize a concurrent profile deletion with a new request.
+            # A deleted or unverified global profile can never receive a new invite.
+            active=await c.fetch("""SELECT user_id FROM profiles
+                WHERE user_id=ANY($1::bigint[]) AND NOT archived
+                  AND adult_self_confirmed FOR SHARE""",
+                  [sender_id,recipient_id])
+            if len({row["user_id"] for row in active})!=2:
+                return None
             exists = await c.fetchval("""SELECT 1 FROM requests WHERE sender_id=$1 AND recipient_id=$2
               AND status='pending' AND expires_at>now() LIMIT 1""",sender_id,recipient_id)
             if exists:
