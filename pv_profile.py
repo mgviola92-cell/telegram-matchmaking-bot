@@ -194,7 +194,7 @@ async def respond(update,context):
     else:
         limit=300 if field=="bio" else (120 if field=="prompt_answer" else 50)
         value="" if text==SKIP else text.strip()
-        if len(value)>limit or any(x in value for x in ("\n","\r")) and field=="location":
+        if len(value)>limit or (field in ("location","prompt_answer") and any(x in value for x in ("\n","\r"))):
             await update.effective_message.reply_text(f"🌷 စာလုံး {limit} အတွင်း ပြန်ရေးပေးနော်။")
             return True
     result=(await db.save_profile_prompt(uid,value) if field=="prompt_answer" else
