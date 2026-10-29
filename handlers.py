@@ -13,6 +13,8 @@ import pv_profile
 import pv_requests_menu
 import pv_owner
 import growth
+import group_events
+from conversation_starters import after_mutual_acceptance
 import repository as db
 from responses import say
 from notices import say_notice
@@ -892,7 +894,8 @@ async def decide_callback(update, context):
         try:
             await context.bot.send_message(
                 user_id,
-                f"💗 မိတ်ဆက်ဖို့ နှစ်ဖက်လုံး သဘောတူလိုက်ပြီနော်။ {recipient_name if user_id == sender_id else sender_name} က အဖြေပေးပြီးပြီ။",
+                f"💗 မိတ်ဆက်ဖို့ နှစ်ဖက်လုံး သဘောတူလိုက်ပြီနော်။ {recipient_name if user_id == sender_id else sender_name} က အဖြေပေးပြီးပြီ။"
+                 + after_mutual_acceptance(request_id),
                 parse_mode="HTML")
         except TelegramError:
             logging.info("Private contact notice could not be delivered")
@@ -1422,6 +1425,7 @@ SETTING_LABELS = {
     "matchmaking": "💗 ဆုံတွေ့ခွင့်", "registration": "📝 မိတ်ဆက်ကတ် စာရင်းသွင်းခွင့်",
     "requests": "💌 ဖိတ်ခေါ်စာပို့ခွင့်",
     "intros": "🎀 မိတ်ဆက်ကတ် တင်ခွင့်", "cleanup": "🧹 ကတ်ဟောင်း ရှင်းလင်းခွင့်",
+    "questions": "🌻 နေ့စဉ် စကားဝိုင်း", "events": "🌷 အပတ်စဉ် မိတ်ဆက်ပွဲ",
 }
 
 async def is_admin(bot, group_id, user_id):
@@ -1445,7 +1449,7 @@ async def settings(update, context):
         await update.message.reply_text(say_notice("admin_only", update.effective_user.id))
         return
     row = await db.group_settings(gid)
-    await update.message.reply_text("🎀 <b>လူတောင်းပွဲ ဝိုင်းစည်းကမ်း</b>\nဒီဝိုင်းမှာ ဘာတွေဖွင့်ထားမလဲ ရွေးလိုက်နော်။",
+    await update.message.reply_text("🎀 <b>လူတောင်းပွဲ ဝိုင်းစည်းကမ်း</b>\nဒီဝိုင်းမှာ ဘာတွေဖွင့်ထားမလဲ ရွေးလိုက်နော်။\n\n🌻 မေးခွန်းပွဲဖွင့်ထားရင် /question၊ အပတ်စဉ် မိတ်ဆက်ပွဲဖွင့်ထားရင် /event ကို Admin က ကိုယ်တိုင်စနိုင်တယ်နော်။",
         parse_mode="HTML", reply_markup=settings_buttons(row))
 
 async def setting_callback(update, context):
@@ -1590,6 +1594,9 @@ def handlers():
                 owner_reply_command),
             ChatMemberHandler(membership_change,ChatMemberHandler.CHAT_MEMBER), CommandHandler("register", register), CommandHandler("match", match),
              CommandHandler("invite",growth.group_invite,filters.ChatType.PRIVATE),
+             CommandHandler("question",group_events.daily_question),
+             CommandHandler("event",group_events.weekly_event),
+             CallbackQueryHandler(group_events.event_callback,pattern=r"^gevent:"),
              CommandHandler("growth",pv_owner.growth_panel,filters.ChatType.PRIVATE),
             CallbackQueryHandler(browse_callback, pattern=r"^browse:"),
             CallbackQueryHandler(ask_callback, pattern=r"^ask:"),
