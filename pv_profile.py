@@ -40,7 +40,8 @@ async def open_profile(update,context):
     p=profiles[0]
     context.user_data["pv_profile"]={"mode":"menu","group_id":p["group_id"]}
     from handlers import show_profile,match_caption
-    await show_profile(context.bot,uid,p,None,full_caption=await match_caption(context.bot,p))
+    card=await show_profile(context.bot,uid,p,None,full_caption=await match_caption(context.bot,p))
+    context.user_data["pv_profile"]["card_message_id"]=card.message_id
     await update.effective_message.reply_text(
         "🎀 ကိုယ့် Profile ကို ဒီအောက်က ခလုတ်လေးတွေနဲ့ ပြင်ဆင်နိုင်ပြီနော်။",
         reply_markup=MENU)
@@ -102,17 +103,13 @@ async def respond(update,context):
             return True
         result=await db.delete_profile(uid,state["group_id"])
         context.user_data.pop("pv_profile",None)
+        from profile_cleanup import cleanup_deleted_profile
+        await cleanup_deleted_profile(context.bot,uid,result,
+            own_card_id=state.get("card_message_id"))
         await update.effective_message.reply_text(
             "🗑 Profile ကို ဖျက်ပြီးပြီနော်။" if result else "🌷 Profile မရှိတော့ဘူးနော်။",
             reply_markup=pv_matching.MAIN_KEYBOARD)
-        if result:
-            affected={r["sender_id"] for r in result["affected"] if r["sender_id"]!=uid}
-            for other in affected:
-                try:
-                    await context.bot.send_message(other,
-                        "💌 ကိုယ်တောင်းထားတဲ့ Profile ဖျက်သွားလို့ Request လေး မရနိုင်တော့ဘူးနော်။")
-                except TelegramError:
-                    logging.info("Cannot notify invalidated sender")
+
         return True
     if mode!="edit" or text in (NAME,AGE,CITY,BIO,MEDIA,DELETE):
         return False
