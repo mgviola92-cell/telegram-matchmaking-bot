@@ -58,7 +58,8 @@ class SourceChecks(unittest.TestCase):
         self.assertIn("async def age_step", handlers)
         self.assertIn("adult_confirmed", handlers)
         self.assertIn("if not 0 <= age <= 999999999", handlers)
-        self.assertIn("age_confirm:yes", handlers)
+        self.assertIn("REG_YES", handlers)
+        self.assertIn("async def confirm_age_reply", handlers)
         self.assertIn('return AGE', handlers)
         self.assertIn("async def location_step", handlers)
 
