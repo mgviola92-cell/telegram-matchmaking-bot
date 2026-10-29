@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS profiles_legacy_backup (
  user_id BIGINT NOT NULL,
  group_id BIGINT NOT NULL,
  display_name TEXT,
- age SMALLINT,
+ age INTEGER,
  adult_self_confirmed BOOLEAN,
  bio TEXT,
  media_type TEXT,
@@ -98,6 +98,9 @@ CREATE TABLE IF NOT EXISTS profiles_legacy_backup (
  created_at TIMESTAMPTZ,
  PRIMARY KEY(user_id,group_id)
 );
+-- Existing deployments may still have a SMALLINT column while active profiles
+-- store large INTEGER display numbers; widen before copying metadata.
+ALTER TABLE profiles_legacy_backup ALTER COLUMN age TYPE INTEGER;
 INSERT INTO profiles_legacy_backup
  (user_id,group_id,display_name,age,adult_self_confirmed,bio,media_type,
   media_file_id,archived,created_at)
