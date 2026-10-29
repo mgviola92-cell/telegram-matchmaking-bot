@@ -221,3 +221,12 @@ CREATE TABLE IF NOT EXISTS group_event_participants (
  joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
  PRIMARY KEY(event_id,user_id)
 );
+
+-- Batch C: explicitly opt-in, on-visit private reminders only.
+-- No timer, worker, per-message scan, cron or external notification service.
+CREATE TABLE IF NOT EXISTS user_notification_preferences (
+ user_id BIGINT PRIMARY KEY REFERENCES profiles(user_id) ON DELETE CASCADE,
+ expiring_inbox BOOLEAN NOT NULL DEFAULT FALSE,
+ last_reminded_at TIMESTAMPTZ,
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
