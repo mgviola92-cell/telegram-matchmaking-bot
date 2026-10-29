@@ -592,3 +592,60 @@ async def update_event_participation(event_id, group_id, user_id, join):
                     WHERE event_id=$1 AND user_id=$2""",event_id,user_id)
             return await c.fetchval("""SELECT count(*) FROM group_event_participants
                 WHERE event_id=$1""",event_id)
+
+
+# Batch C: opt-in reminders checked only during a private user interaction.
+async def get_notification_preference(user_id):
+    """No row means explicitly opt-out; never infer opt-in from group membership."""
+    p=await pool()
+    async with p.acquire() as c:
+        row=await c.fetchrow("""SELECT expiring_inbox, last_reminded_at
+            FROM user_notification_preferences WHERE user_id=$1""",user_id)
+        return dict(row) if row else {"expiring_inbox":False,"last_reminded_at":None}
+
+
+async def set_notification_preference(user_id, enabled):
+    """Only active 18+-confirmed global profile holders may opt in."""
+    if type(enabled) is not bool:
+        raise ValueError("Expected a boolean notification preference")
+    p=await pool()
+    async with p.acquire() as c:
+        return await c.fetchrow("""INSERT INTO user_notification_preferences
+                (user_id,expiring_inbox,updated_at)
+            SELECT user_id,$2,now() FROM profiles
+            WHERE user_id=$1 AND NOT archived AND adult_self_confirmed
+            ON CONFLICT(user_id) DO UPDATE
+              SET expiring_inbox=EXCLUDED.expiring_inbox,
+                  updated_at=CASE WHEN user_notification_preferences.expiring_inbox
+                    IS DISTINCT FROM EXCLUDED.expiring_inbox
+                    THEN now() ELSE user_notification_preferences.updated_at END
+            RETURNING user_id,expiring_inbox""",user_id,enabled)
+
+
+async def claim_expiring_inbox_digest(user_id):
+    """One atomic 12h-limited summary check, only called on private /start.
+
+    Never include personal profiles or contact links in the digest. Inactive,
+    expired, withdrawn and already-decided invitations are excluded.
+    """
+    p=await pool()
+    async with p.acquire() as c:
+        return await c.fetchval("""UPDATE user_notification_preferences pref
+            SET last_reminded_at=now(), updated_at=now()
+            WHERE pref.user_id=$1 AND pref.expiring_inbox
+              AND (pref.last_reminded_at IS NULL
+                OR pref.last_reminded_at<=now()-interval '12 hours')
+              AND EXISTS (
+                SELECT 1 FROM requests r
+                WHERE r.recipient_id=pref.user_id
+                  AND r.status='pending'
+                  AND r.expires_at>now()
+                  AND r.expires_at<=now()+interval '4 hours'
+              )
+            RETURNING (
+                SELECT count(*)::int FROM requests r
+                WHERE r.recipient_id=pref.user_id
+                  AND r.status='pending'
+                  AND r.expires_at>now()
+                  AND r.expires_at<=now()+interval '4 hours'
+            )""",user_id)
