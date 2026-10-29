@@ -40,7 +40,7 @@ class OwnerPanelTests(unittest.IsolatedAsyncioTestCase):
             await handlers.owner_panel(user,SimpleNamespace())
         call = user.effective_message.reply_text.await_args
         self.assertIn("Owner QA Panel",str(call))
-        self.assertIn("owner:ask_reset",str(call))
+        self.assertIn("♻️ Test Request Reset",str(call))
 
     async def test_first_owner_visit_requests_group_once(self):
         user=SimpleNamespace(effective_user=SimpleNamespace(id=11),
