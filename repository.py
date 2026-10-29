@@ -420,7 +420,7 @@ async def save_profile_interests(user_id, interests):
 
 
 async def save_profile_prompt(user_id, answer):
-    if len(answer)>120 or "\\n" in answer or "\\r" in answer:
+    if len(answer)>120 or "\n" in answer or "\r" in answer:
         raise ValueError("Invalid profile prompt answer")
     p=await pool()
     async with p.acquire() as c:
