@@ -1449,7 +1449,7 @@ async def settings(update, context):
         await update.message.reply_text(say_notice("admin_only", update.effective_user.id))
         return
     row = await db.group_settings(gid)
-    await update.message.reply_text("🎀 <b>လူတောင်းပွဲ ဝိုင်းစည်းကမ်း</b>\nဒီဝိုင်းမှာ ဘာတွေဖွင့်ထားမလဲ ရွေးလိုက်နော်။",
+    await update.message.reply_text("🎀 <b>လူတောင်းပွဲ ဝိုင်းစည်းကမ်း</b>\nဒီဝိုင်းမှာ ဘာတွေဖွင့်ထားမလဲ ရွေးလိုက်နော်။\n\n🌻 မေးခွန်းပွဲဖွင့်ထားရင် /question၊ အပတ်စဉ် မိတ်ဆက်ပွဲဖွင့်ထားရင် /event ကို Admin က ကိုယ်တိုင်စနိုင်တယ်နော်။",
         parse_mode="HTML", reply_markup=settings_buttons(row))
 
 async def setting_callback(update, context):
