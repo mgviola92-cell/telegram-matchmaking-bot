@@ -12,6 +12,7 @@ import pv_matching
 import pv_profile
 import pv_requests_menu
 import pv_owner
+import growth
 import repository as db
 from responses import say
 from notices import say_notice
@@ -107,7 +108,14 @@ def caption(p):
     # Preserve the compact original layout, with bold nickname to distinguish
     # it from wrapping bio text on narrow screens.
     facts[0] = f"<b>{facts[0]}</b>"
-    return "၊ ".join(facts) + (f" — {bio}" if bio else "")
+    summary = "၊ ".join(facts) + (f" — {bio}" if bio else "")
+    tags = p.get("interests") or []
+    if tags:
+        summary += "\n🎨 " + " · ".join(html.escape(tag) for tag in tags[:5])
+    prompt = p.get("prompt_answer") or ""
+    if prompt:
+        summary += "\n💭 " + html.escape(prompt[:120])
+    return summary
 
 async def match_caption(bot, profile):
     """A readable two-line gap before Telegram group blockquote."""
@@ -374,6 +382,9 @@ async def start(update, context):
         await msg.reply_text(say("welcome", update.effective_user.id))
         return
     args = context.args
+    if args and args[0].startswith("p_"):
+        await growth.show_shared_profile(update,context,args[0][2:])
+        return ConversationHandler.END
     if args and args[0].startswith("match_"):
         try:
             source_group = int(args[0][6:])
@@ -1520,6 +1531,8 @@ async def private_keyboard_command(update,context):
         context.user_data.pop("pv_profile",None)
         context.user_data.pop("pv_requests",None)
         await pv_requests_menu.open_menu(update,context,"outgoing")
+    elif key==growth.INVITE_GROUP:
+        await growth.group_invite(update,context)
     elif key==pv_matching.MAIN_HELP:
         await update.effective_message.reply_text(
             "🌷 Bot ရှိတဲ့ Group မှာ /register နဲ့ Profile အရင်ဖန်တီးပေးနော်။\\n"
@@ -1576,13 +1589,15 @@ def handlers():
                 filters.Regex(r"^(♻️ Test Request Reset|✅ Test Requests Reset|🌷 မလုပ်တော့ဘူး|🔄 Panel ပြန်ကြည့်မယ်)$"),
                 owner_reply_command),
             ChatMemberHandler(membership_change,ChatMemberHandler.CHAT_MEMBER), CommandHandler("register", register), CommandHandler("match", match),
+             CommandHandler("invite",growth.group_invite,filters.ChatType.PRIVATE),
+             CommandHandler("growth",pv_owner.growth_panel,filters.ChatType.PRIVATE),
             CallbackQueryHandler(browse_callback, pattern=r"^browse:"),
             CallbackQueryHandler(ask_callback, pattern=r"^ask:"),
             CallbackQueryHandler(ask_confirm_callback, pattern=r"^ask_(confirm:|cancel:)"), CallbackQueryHandler(reply_callback, pattern=r"^reply:"),
             CallbackQueryHandler(pv_matching.confirm,pattern=r"^pvreq"),
             CommandHandler("startmatch",pv_matching.select_source_group,filters.ChatType.PRIVATE),
             MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND &
-                filters.Regex(r"^(🔎 Profile ရှာမယ်|🎀 ကိုယ့် Profile|💌 ရောက်လာတဲ့စာတွေ|📮 ပို့ထားတဲ့စာတွေ|🌷 အသုံးပြုပုံ)$"),
+                filters.Regex(r"^(🔎 Profile ရှာမယ်|🎀 ကိုယ့် Profile|💌 ရောက်လာတဲ့စာတွေ|📮 ပို့ထားတဲ့စာတွေ|🌷 အသုံးပြုပုံ|🌷 Group ထဲ ဖိတ်မယ်)$"),
                 private_keyboard_command),
             MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND &
                 filters.Regex(r"^(👎 ကျော်မယ်|💌 တောင်းမယ်|❌ ပွဲသိမ်းမယ်|💌 တကယ်တောင်းမယ်|🌷 စိတ်ပြောင်းပြီ)$"),
