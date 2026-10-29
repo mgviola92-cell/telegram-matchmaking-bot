@@ -89,7 +89,7 @@ class LivePostgresMigrationQA(unittest.IsolatedAsyncioTestCase):
             "SELECT count(*) FROM profiles WHERE user_id=9001"),1)
 
     async def test_notification_preference_and_atomic_twelve_hour_digest(self):
-        async with patch.object(repository,"pool",AsyncMock(return_value=self.dbpool)):
+        with patch.object(repository,"pool",AsyncMock(return_value=self.dbpool)):
             # Opted out by default, even for an adult-confirmed global profile.
             self.assertFalse((await repository.get_notification_preference(9001))
                              ["expiring_inbox"])
@@ -113,7 +113,7 @@ class LivePostgresMigrationQA(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(await repository.claim_expiring_inbox_digest(9001))
 
     async def test_group_features_default_off_and_cascade_cleanup(self):
-        async with patch.object(repository,"pool",AsyncMock(return_value=self.dbpool)):
+        with patch.object(repository,"pool",AsyncMock(return_value=self.dbpool)):
             row=await repository.group_settings(-1009)
             self.assertFalse(row["questions"])
             self.assertFalse(row["events"])
