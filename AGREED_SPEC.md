@@ -106,3 +106,11 @@
 - New data: tiny question/event timestamp/message-ID rows, event participation IDs with foreign-key cleanup, profile interests/short prompt, and an opaque share token. No media bytes, automatic invitation spam, scheduled database polling or mini app.
 - Do **not** add previously excluded Block/Report/Privacy growth feature #8. Preserve all existing age, consent, membership and account-link checks.
 - Changes are **not merged to main or deployed**. GitHub mocked tests are not proof of live Telegram behavior. A production DB migration snapshot and manual consenting-adult two-user/two-group QA are required before release.
+
+## Batch C — private on-visit reminders and migration QA (draft PR #3; 2026-10-29)
+- Opt-in only, OFF by default for all adult-confirmed global profiles. PV reply keyboard offers `🔔 သတိပေးစာ`; users can enable or disable without changing another group or person's settings.
+- A user opening an ordinary private `/start` may see one short digest of their own still-pending invitations expiring within the next four hours; the DB limits reminders to once every twelve hours per opted-in user. Deep-link onboarding/match/reply flows never trigger this summary. It does **not** proactively message offline users.
+- No group broadcast, profile photo/video downloads, persistent background timers, cron, queue workers or per-minute Neon polling. Notification preferences cascade away on profile deletion.
+- GitHub Actions CI includes a disposable local PostgreSQL 16 migration/behavior job. It rejects production/remote database URLs, checks global-profile consolidation, preserved legacy backups, profile deletion cascades and opt-in digest semantics; the job is distinct from real Telegram E2E testing.
+- Ephemeral group messages are API-supported as of Telegram Bot API 10.3, but compatibility with the pinned Python Telegram library must be validated before any experimental code can be deployed. Existing explicit PV navigation remains the fallback.
+- Nothing in Batch A/B/C is merged to main or deployed merely because tests pass; main + real production Neon remain unchanged.
