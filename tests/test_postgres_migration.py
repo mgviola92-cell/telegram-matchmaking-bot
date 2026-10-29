@@ -112,6 +112,37 @@ class LivePostgresMigrationQA(unittest.IsolatedAsyncioTestCase):
             """)
             self.assertIsNone(await repository.claim_expiring_inbox_digest(9001))
 
+    async def test_daily_weekly_post_limits_and_voluntary_participation(self):
+        async with self.dbpool.acquire() as c:
+            # No surprise post: both admin-managed settings begin OFF.
+            row=await c.fetchrow("SELECT 1 FROM group_settings WHERE group_id=-1009")
+            self.assertIsNone(row)
+        with patch.object(repository,"pool",AsyncMock(return_value=self.dbpool)):
+            self.assertIsNone(await repository.claim_daily_question(-1009,0))
+            self.assertIsNone(await repository.claim_weekly_event(-1009))
+            await repository.set_group_setting(-1009,"questions",True)
+            day=await repository.claim_daily_question(-1009,0)
+            self.assertIsNotNone(day)
+            self.assertIsNone(await repository.claim_daily_question(-1009,1))
+            await repository.question_posted(-1009,day["local_day"],404)
+            await repository.set_group_setting(-1009,"events",True)
+            event=await repository.claim_weekly_event(-1009)
+            self.assertIsNotNone(event)
+            self.assertIsNone(await repository.claim_weekly_event(-1009))
+            await repository.event_posted(event["id"],-1009,405)
+            self.assertEqual(await repository.update_event_participation(
+                event["id"],-1009,9001,True),1)
+            self.assertEqual(await repository.update_event_participation(
+                event["id"],-1009,9001,True),1)
+            self.assertEqual(await repository.update_event_participation(
+                event["id"],-1009,9001,False),0)
+            self.assertEqual(await repository.update_event_participation(
+                event["id"],-1009,9001,True),1)
+        await self.conn.execute("DELETE FROM profiles WHERE user_id=9001")
+        self.assertEqual(await self.conn.fetchval(
+            "SELECT count(*) FROM group_event_participants WHERE event_id=$1",
+            event["id"]),0)
+
     async def test_group_features_default_off_and_cascade_cleanup(self):
         with patch.object(repository,"pool",AsyncMock(return_value=self.dbpool)):
             row=await repository.group_settings(-1009)
